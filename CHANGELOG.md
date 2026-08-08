@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.2
+
+### Fixes
+
+* **The Low Health % and Critically Low Health % fields could not be edited.** Both
+  cap at two letters and hold a two digit percentage, so as soon as the saved value
+  was loaded they sat at the character limit and the client rejected every
+  keystroke. Clicking a field and typing did nothing at all, with no error to
+  explain it.
+
+  Clicking a field now selects its contents, so typing replaces the value. Enter
+  and Escape both release focus, and leaving a field saves it immediately instead
+  of waiting for the options panel to be closed.
+
+---
+
 ## 1.3.1
 
 Fixes two problems that made 1.3.0 unusable for a lot of players. Updating is
