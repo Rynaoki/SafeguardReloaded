@@ -27,10 +27,7 @@ function NM:ShowNotificationToPlayer(playerWhoNotified, notificationType, arg1, 
   if (self.ShownNotificationTimestamps[notificationKey] and nowTimestamp - self.ShownNotificationTimestamps[notificationKey] < 1) then return end
   self.ShownNotificationTimestamps[notificationKey] = nowTimestamp
 
-  local r = 1.000
-  local g = 1.000
-  local b = 1.000
-  UIErrorsFrame:AddMessage(notification, r, g, b)
+  SafeguardReloaded_NotificationFrame:ShowNotification(notification)
   --print("[Safeguard] " .. notification)
   table.insert(Safeguard_EventManager.DebugLogs, string.format("%d - Notification: %s", time(), notification))
 end

@@ -136,6 +136,7 @@ function EM.EventHandlers.ADDON_LOADED(self, addonName, ...)
 
   Safeguard_OptionWindow:Initialize()
   Safeguard_PvpFlagTimerWindow:Initialize()
+  SafeguardReloaded_NotificationFrame:Initialize()
 end
 
 function EM.EventHandlers.CHAT_MSG_ADDON(self, prefix, text, channel, sender, target, zoneChannelID, localID, name, instanceID)
@@ -613,6 +614,12 @@ function EM:Test()
 
   MessageManager:SendMessageToGroup(SgEnum.AddonMessageType.AddonInfo, Compat.GetAddOnMetadata("Version"))
   print(CHAT_PREFIX .. "Version " .. tostring(Compat.GetAddOnMetadata("Version")))
+
+  -- Sample notifications, so the onscreen styling can be judged without waiting for
+  -- something to actually go wrong.
+  local playerName = UnitName("player")
+  Safeguard_NotificationManager:ShowNotificationToPlayer(playerName, SgEnum.NotificationType.HealthCriticallyLow, 12)
+  Safeguard_NotificationManager:ShowNotificationToPlayer(playerName, SgEnum.NotificationType.LossOfControl, SgEnum.LossOfControlType.Stun, 4)
 end
 
 function EM:Debug()
