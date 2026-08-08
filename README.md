@@ -81,11 +81,18 @@ imported automatically.
 See [CHANGELOG.md](CHANGELOG.md) for the full list. The short version:
 
 * Updated to the Classic Era 1.15.9 interface version.
+* Fixed the options panel, which could not be opened at all on 1.15.x and left the
+  chat box unusable when you tried.
+* Fixed watched spells never being detected on a non-English client, where the
+  combat log reports translated spell names.
+* Spell names in messages are now always English, so a mixed-locale group reads the
+  same text.
 * Fixed raid frame icons, which were broken by Blizzard replacing
   `CompactRaidFrameContainer_ApplyToFrames` with a container method.
 * Fixed a Lua error thrown every time you hovered a raid frame status icon.
 * Fixed group chat messages being sent to the wrong channel in raids and instance
   groups, where they were silently dropped.
+* Shortened the chat prefix to `[SGR]`.
 * Added a `Compat.lua` shim layer so API changes are handled in one place.
 * Stopped loading ~1.9 MB of unused NPC and zone data on every login.
 
