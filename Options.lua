@@ -4,6 +4,40 @@ local Compat = SafeguardReloaded_Compat
 
 local CHAT_PREFIX = Compat.ChatPrefix
 
+-- Both threshold fields hold a two digit percentage and cap out at two letters, so
+-- the moment a saved value is loaded they are full and the client rejects every
+-- further keystroke. Nothing appears to happen when you type.
+--
+-- Selecting the contents on focus is what a short numeric field wants anyway: click
+-- it, type the new number, and it replaces the old one. Enter and Escape both give
+-- up focus, and leaving the field writes the value straight away rather than
+-- waiting for the panel to be closed.
+local function CreateThresholdEditBox(parent, xOffset, yPos)
+  local editBox = CreateFrame("EditBox", nil, parent, BackdropTemplateMixin and "BackdropTemplate")
+  editBox:SetPoint("LEFT", parent, "TOPLEFT", xOffset, yPos)
+  editBox:SetSize(28, 20)
+  editBox:SetFontObject(ChatFontNormal)
+  editBox:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10 })
+  editBox:SetAutoFocus(false)
+  editBox:SetMaxLetters(2)
+  editBox:SetMultiLine(false)
+  editBox:SetNumeric(true)
+  editBox:SetTextInsets(5, 5, 0, 0)
+  editBox:EnableMouse(true)
+
+  editBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+
+  editBox:SetScript("OnEditFocusLost", function(self)
+    self:HighlightText(0, 0)
+    Safeguard_OptionWindow:SaveOptions()
+  end)
+
+  editBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+  editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+  return editBox
+end
+
 function Safeguard_OptionWindow:Initialize()
   self.Header = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   self.Header:SetPoint("TOPLEFT", 10, -12)
@@ -71,32 +105,12 @@ function Safeguard_OptionWindow:Initialize()
   self.fsEnableLowHealthAlerts:SetText("Enable Low Health Alerts")
   yPos = yPos - 22
 
-  self.ebLowHealthThreshold = CreateFrame("EditBox", nil, self, BackdropTemplateMixin and "BackdropTemplate");
-  self.ebLowHealthThreshold:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.ebLowHealthThreshold:SetSize(28, 20)
-  self.ebLowHealthThreshold:SetFontObject(ChatFontNormal)
-  self.ebLowHealthThreshold:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10 })
-  self.ebLowHealthThreshold:SetAutoFocus(false)
-  self.ebLowHealthThreshold:SetMaxLetters(2)
-  self.ebLowHealthThreshold:SetMultiLine(false)
-  self.ebLowHealthThreshold:SetNumeric(true)
-  self.ebLowHealthThreshold:SetScript("OnEscapePressed", function() self.ebLowHealthThreshold:ClearFocus() end)
-  self.ebLowHealthThreshold:SetTextInsets(5, 5, 0, 0)
+  self.ebLowHealthThreshold = CreateThresholdEditBox(self, 34, yPos)
   self.fsLowHealthThreshold = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   self.fsLowHealthThreshold:SetPoint("LEFT", self, "TOPLEFT", 65, yPos)
   self.fsLowHealthThreshold:SetText("Low Health %")
 
-  self.ebCriticalHealthThreshold = CreateFrame("EditBox", nil, self, BackdropTemplateMixin and "BackdropTemplate");
-  self.ebCriticalHealthThreshold:SetPoint("LEFT", self, "TOPLEFT", 204, yPos)
-  self.ebCriticalHealthThreshold:SetSize(28, 20)
-  self.ebCriticalHealthThreshold:SetFontObject(ChatFontNormal)
-  self.ebCriticalHealthThreshold:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10 })
-  self.ebCriticalHealthThreshold:SetAutoFocus(false)
-  self.ebCriticalHealthThreshold:SetMaxLetters(2)
-  self.ebCriticalHealthThreshold:SetMultiLine(false)
-  self.ebCriticalHealthThreshold:SetNumeric(true)
-  self.ebCriticalHealthThreshold:SetScript("OnEscapePressed", function() self.ebCriticalHealthThreshold:ClearFocus() end)
-  self.ebCriticalHealthThreshold:SetTextInsets(5, 5, 0, 0)
+  self.ebCriticalHealthThreshold = CreateThresholdEditBox(self, 204, yPos)
   self.fsCriticalHealthThreshold = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   self.fsCriticalHealthThreshold:SetPoint("LEFT", self, "TOPLEFT", 235, yPos)
   self.fsCriticalHealthThreshold:SetText("Critically Low Health %")
