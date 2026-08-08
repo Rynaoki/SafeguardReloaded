@@ -110,7 +110,9 @@ Compat.DefaultWindowBackdrop = BACKDROP_TUTORIAL_16_16 or {
 function Compat.RegisterOptionsPanel(frame, name)
   if (Settings and Settings.RegisterCanvasLayoutCategory) then
     local category = Settings.RegisterCanvasLayoutCategory(frame, name)
-    category.ID = name
+    -- Deliberately not overwriting category.ID with the panel name here. Older
+    -- clients let OpenToCategory take a name, so doing that was a common trick,
+    -- but on 1.15.x the id must stay the number the Settings system assigned.
     Settings.RegisterAddOnCategory(category)
     return category
   end
@@ -125,20 +127,28 @@ function Compat.RegisterOptionsPanel(frame, name)
 end
 
 function Compat.OpenOptionsPanel(category, name)
-  -- The category object exposes its id as a GetID method on some builds and as a
-  -- plain ID field on others. Calling the method blindly errors where it is
-  -- missing, and an error raised inside a slash handler leaves the chat edit box
-  -- uncleared, which looks to the player like the Enter key stopped working.
-  local categoryId = name
+  -- The category exposes its id as a GetID method on some builds and as a plain
+  -- ID field on others, so read whichever is present rather than assuming.
+  local categoryId = nil
   if (category) then
     if (type(category.GetID) == "function") then
       categoryId = category:GetID()
-    elseif (category.ID ~= nil) then
+    else
       categoryId = category.ID
     end
   end
 
   if (Settings and Settings.OpenToCategory) then
+    -- On 1.15.x this routes to C_SettingsUtil.OpenSettingsPanel, which only
+    -- accepts a numeric id. Passing anything else raises an error, and an error
+    -- inside a slash handler leaves the chat edit box uncleared, which looks to
+    -- the player like the Enter key stopped working. Bail out loudly instead.
+    if (type(categoryId) ~= "number") then
+      print("[SafeguardReloaded] Could not open the options panel. " ..
+        "Open it from Game Menu > Options > AddOns > " .. tostring(name) .. " instead.")
+      return
+    end
+
     Settings.OpenToCategory(categoryId)
     return
   end
