@@ -2,7 +2,7 @@
 ## Title: Safeguard|cff00ff00Reloaded|r
 ## Notes: Help players stay alive. Continuation of Safeguard by Tollski.
 ## Author: Rynaoki
-## Version: 1.3.0
+## Version: 1.3.1
 ## IconTexture: Interface\Icons\Spell_Holy_DivineIntervention
 ## SavedVariables: SAFEGUARDRELOADED_SETTINGS
 ## X-Category: Combat

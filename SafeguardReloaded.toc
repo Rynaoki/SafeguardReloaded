@@ -2,4 +2,4 @@
 ## Title: SafeguardReloaded (Unsupported Client)
 ## Notes: SafeguardReloaded only works on Classic Era / TBC Classic.
 ## Author: Rynaoki
-## Version: 1.3.0
+## Version: 1.3.1
