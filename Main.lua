@@ -152,8 +152,9 @@ end
 -- language, which keeps a sentence like "My Hearthstone cast has been stopped."
 -- in one language and means a group of mixed-locale clients reads the same text.
 --
--- The English names are kept as keys too: if an id cannot be resolved the addon
--- still behaves exactly as it did before.
+-- The English names are kept as keys too, so an entry whose id cannot be resolved
+-- on this client still matches the way it always did. Passing a falsy id is
+-- allowed and means "English only" for that spell.
 local function BuildSpellNameLookup(entries)
   local lookup = {}
 
@@ -169,20 +170,22 @@ local function BuildSpellNameLookup(entries)
   return lookup
 end
 
+-- Classic Era spell ids, verified against the Classic database on Wowhead. Where a
+-- spell has several ranks any one of them will do, since the lookup only uses the
+-- id to read the name and every rank shares it. For consumables the id is the
+-- buff that lands on the player, not the spell the item casts, because that is
+-- what SPELL_AURA_APPLIED reports.
 local AurasToNotify = BuildSpellNameLookup({
   ["Blessing of Protection"] = 1022,
   ["Divine Intervention"] = 19752,
   ["Divine Protection"] = 498,
   ["Divine Shield"] = 642,
   ["Feign Death"] = 5384,
+  ["Ice Block"] = 11958,
+  ["Invulnerability"] = 3169,  -- from Limited Invulnerability Potion
+  ["Light of Elune"] = 6724,
+  ["Petrification"] = 17624,   -- from Flask of Petrification
   ["Vanish"] = 1856,
-  -- No verified Classic Era spell id yet, so these still only match in English.
-  -- Note the sentinel is false, not nil: a nil value would drop the key from the
-  -- table constructor entirely and lose the English fallback with it.
-  ["Ice Block"] = false,
-  ["Invulnerability"] = false, -- Limited Invulnerability Potion
-  ["Light of Elune"] = false,
-  ["Petrification"] = false, -- Flask of Petrification
 })
 
 local SpellsToNotifyOnCastStart = BuildSpellNameLookup({
