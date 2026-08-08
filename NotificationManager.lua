@@ -176,6 +176,25 @@ function NM:GetNotification(playerWhoNotified, notificationType, arg1, arg2)
     return string.format("%s health is critically low.", prefix)
   end
 
+  if (notificationType == SgEnum.NotificationType.ManaLow) then
+    if (not Safeguard_Settings.Options.EnableLowManaAlerts) then
+      return nil
+    end
+
+    local prefix
+    if (playerWhoNotified == UnitName("player")) then
+      prefix = "Your"
+    else
+      if (UnitInRaid("player")) then
+        return nil
+      end
+
+      prefix = string.format("%s's", playerWhoNotified)
+    end
+
+    return string.format("%s mana is low (%d%%).", prefix, arg1)
+  end
+
   if (notificationType == SgEnum.NotificationType.SpellCastStarted) then
     if (not Safeguard_Settings.Options.EnableTextNotificationsSpellcasts or UnitInRaid("player")) then
       return nil
@@ -260,6 +279,9 @@ function NM:ConvertAddonMessageTypeToNotificationType(addonMessageType)
   end
   if (addonMessageType == SgEnum.AddonMessageType.HealthCriticallyLow) then
     return SgEnum.NotificationType.HealthCriticallyLow
+  end
+  if (addonMessageType == SgEnum.AddonMessageType.ManaLow) then
+    return SgEnum.NotificationType.ManaLow
   end
   if (addonMessageType == SgEnum.AddonMessageType.SpellCastStarted) then
     return SgEnum.NotificationType.SpellCastStarted

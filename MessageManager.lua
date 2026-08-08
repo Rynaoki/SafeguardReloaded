@@ -116,6 +116,7 @@ function MM:SendMessageToGroup(addonMessageType, arg1, arg2)
 
   if (addonMessageType == SgEnum.AddonMessageType.HealthCriticallyLow or
       addonMessageType == SgEnum.AddonMessageType.HealthLow or
+      addonMessageType == SgEnum.AddonMessageType.ManaLow or
       addonMessageType == SgEnum.AddonMessageType.ExtraAttacksStored) then
     -- Other players with the addon can detect these events independently.
     return
@@ -155,6 +156,10 @@ function MM:ConvertAddonMessageToChatMessage(addonMessageType, arg1, arg2)
 
   if (addonMessageType == SgEnum.AddonMessageType.HealthCriticallyLow and Safeguard_Settings.Options.EnableChatMessagesLowHealth) then
     return string.format("Help, my health is at %d%%!", arg1)
+  end
+
+  if (addonMessageType == SgEnum.AddonMessageType.ManaLow and Safeguard_Settings.Options.EnableChatMessagesLowMana) then
+    return string.format("I am low on mana (%d%%).", arg1)
   end
 
   if (addonMessageType == SgEnum.AddonMessageType.SpellCastStarted and Safeguard_Settings.Options.EnableChatMessagesSpellCasts) then

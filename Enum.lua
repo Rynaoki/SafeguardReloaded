@@ -12,7 +12,8 @@ SgEnum = {
     SpellCastStarted = 17,
     SpellCastInterrupted = 18,
     LossOfControl = 19,
-    ExtraAttacksStored = 20
+    ExtraAttacksStored = 20,
+    ManaLow = 21
   },
   LossOfControlType = {
     Unknown = 0,
@@ -42,5 +43,6 @@ SgEnum = {
     PvpFlagged = 21,
     PvpUnflagged = 22,
     ExtraAttacksStored = 23,
+    ManaLow = 24,
   },
 }

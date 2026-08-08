@@ -134,7 +134,28 @@ function Safeguard_OptionWindow:Initialize()
   self.fsLowHealthAlertNote:SetText("Note: Chat messages and notification settings can be set in their respective sections.")
   yPos = yPos - 22
 
-  self.cbEnableTextNotifications = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
+  -- All three mana controls share one row. The panel has no scroll frame and its
+  -- last row is already close to the bottom of the canvas, so a self contained
+  -- feature that is off by default does not get to spend three rows on itself.
+  self.cbEnableLowManaAlerts = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate")
+  self.cbEnableLowManaAlerts:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
+  self.fsEnableLowManaAlerts = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  self.fsEnableLowManaAlerts:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
+  self.fsEnableLowManaAlerts:SetText("Enable Low Mana Alerts")
+
+  self.ebLowManaThreshold = CreateThresholdEditBox(self, 204, yPos)
+  self.fsLowManaThreshold = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  self.fsLowManaThreshold:SetPoint("LEFT", self, "TOPLEFT", 235, yPos)
+  self.fsLowManaThreshold:SetText("Low Mana %")
+
+  self.cbEnableChatMessagesLowMana = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate")
+  self.cbEnableChatMessagesLowMana:SetPoint("LEFT", self, "TOPLEFT", 340, yPos)
+  self.fsEnableChatMessagesLowMana = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  self.fsEnableChatMessagesLowMana:SetPoint("LEFT", self, "TOPLEFT", 370, yPos)
+  self.fsEnableChatMessagesLowMana:SetText("Announce In Party Chat")
+  yPos = yPos - 22
+
+  self.cbEnableTextNotifications = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate")
   self.cbEnableTextNotifications:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
   self.fsEnableTextNotifications = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   self.fsEnableTextNotifications:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
@@ -325,6 +346,9 @@ function Safeguard_OptionWindow:LoadOptions()
   self.ebCriticalHealthThreshold:SetNumber(Safeguard_Settings.Options.ThresholdForCriticallyLowHealth * 100)
   self.cbEnableLowHealthAlertScreenFlashing:SetChecked(Safeguard_Settings.Options.EnableLowHealthAlertScreenFlashing)
   self.cbEnableLowHealthAlertSounds:SetChecked(Safeguard_Settings.Options.EnableLowHealthAlertSounds)
+  self.cbEnableLowManaAlerts:SetChecked(Safeguard_Settings.Options.EnableLowManaAlerts)
+  self.ebLowManaThreshold:SetNumber(Safeguard_Settings.Options.ThresholdForLowMana * 100)
+  self.cbEnableChatMessagesLowMana:SetChecked(Safeguard_Settings.Options.EnableChatMessagesLowMana)
   self.cbEnableTextNotifications:SetChecked(Safeguard_Settings.Options.EnableTextNotifications)
   self.cbEnableTextNotificationsCombatSelf:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsCombatSelf)
   self.cbEnableTextNotificationsCombatGroup:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsCombatGroup)
@@ -364,6 +388,12 @@ function Safeguard_OptionWindow:SaveOptions()
     self.ebCriticalHealthThreshold:SetNumber(self.ebLowHealthThreshold:GetNumber() - 1)
   end
 
+  -- Unlike health there is no second mana threshold to stay below, so 1 to 99 is the
+  -- only constraint. The two letter cap on the field already rules out 100.
+  if (self.ebLowManaThreshold:GetNumber() < 1) then
+    self.ebLowManaThreshold:SetNumber(1)
+  end
+
   local shouldUpdateRaidFrames = Safeguard_Settings.Options.ShowIconsOnRaidFrames ~= self.cbShowIconsOnRaidFrames:GetChecked()
   local shouldUpdatePvpFlagTimerWindow = not Safeguard_Settings.Options.ShowPvpFlagTimerWindow and self.cbShowPvpFlagTimerWindow:GetChecked()
   
@@ -378,6 +408,9 @@ function Safeguard_OptionWindow:SaveOptions()
   Safeguard_Settings.Options.ThresholdForCriticallyLowHealth = self.ebCriticalHealthThreshold:GetNumber() / 100
   Safeguard_Settings.Options.EnableLowHealthAlertScreenFlashing = self.cbEnableLowHealthAlertScreenFlashing:GetChecked()
   Safeguard_Settings.Options.EnableLowHealthAlertSounds = self.cbEnableLowHealthAlertSounds:GetChecked()
+  Safeguard_Settings.Options.EnableLowManaAlerts = self.cbEnableLowManaAlerts:GetChecked()
+  Safeguard_Settings.Options.ThresholdForLowMana = self.ebLowManaThreshold:GetNumber() / 100
+  Safeguard_Settings.Options.EnableChatMessagesLowMana = self.cbEnableChatMessagesLowMana:GetChecked()
   Safeguard_Settings.Options.EnableTextNotifications = self.cbEnableTextNotifications:GetChecked()
   Safeguard_Settings.Options.EnableTextNotificationsCombatSelf = self.cbEnableTextNotificationsCombatSelf:GetChecked()
   Safeguard_Settings.Options.EnableTextNotificationsCombatGroup = self.cbEnableTextNotificationsCombatGroup:GetChecked()

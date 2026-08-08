@@ -74,7 +74,12 @@ local defaultOptions = {
   EnableChatMessagesLowHealth = true,
   EnableChatMessagesSpellCasts = true,
   EnableChatMessagesExtraAttacksStored = true,
+  EnableChatMessagesLowMana = true,
   EnableLowHealthAlerts = true,
+  -- Off by default: plenty of classes sit at low mana routinely and would rather
+  -- not be told about it. Opt in and pick your own threshold.
+  EnableLowManaAlerts = false,
+  ThresholdForLowMana = 0.20,
   EnableLowHealthAlertScreenFlashing = true,
   EnableLowHealthAlertSounds = true,
   EnableTextNotifications = true,
@@ -448,6 +453,39 @@ function EM.EventHandlers.UNIT_HEALTH(self, unitId)
   end
 
   healthStatus[unitId] = newHealthStatus
+end
+
+local manaIsLow = {}
+
+-- UNIT_POWER_UPDATE fires constantly, so the disabled case has to be the first thing
+-- checked. With the option off this costs one table lookup per event.
+function EM.EventHandlers.UNIT_POWER_UPDATE(self, unitId, powerType)
+  if (not Safeguard_Settings.Options.EnableLowManaAlerts) then return end
+  if (powerType ~= "MANA") then return end
+
+  local updateIsForPlayer = unitId == "player"
+  local updateIsForParty = unitId:match("party")
+  if (not updateIsForPlayer and not updateIsForParty) then return end
+
+  local maxMana = UnitPowerMax(unitId, Compat.ManaPowerType)
+  if (maxMana == 0) then return end
+
+  local manaPercentage = UnitPower(unitId, Compat.ManaPowerType) / maxMana
+  local isLow = manaPercentage <= Safeguard_Settings.Options.ThresholdForLowMana
+
+  -- Only the crossing into low mana is interesting. Storing the state means a unit
+  -- hovering either side of the threshold is not announced over and over.
+  if (isLow == manaIsLow[unitId]) then return end
+  manaIsLow[unitId] = isLow
+
+  if (not isLow) then return end
+
+  local manaPercent = math.floor(manaPercentage * 100)
+  Safeguard_NotificationManager:ShowNotificationToPlayer(UnitName(unitId), SgEnum.NotificationType.ManaLow, manaPercent)
+
+  if (updateIsForPlayer) then
+    MessageManager:SendMessageToGroup(SgEnum.AddonMessageType.ManaLow, manaPercent)
+  end
 end
 
 

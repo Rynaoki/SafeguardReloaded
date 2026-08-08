@@ -99,6 +99,11 @@ function Compat.GetSpellName(spellId)
   return nil
 end
 
+-- *** Power types ***
+-- UnitPower needs the numeric power type. Mana has always been 0, but read it from
+-- the Enum table where that exists rather than hardcoding the number.
+Compat.ManaPowerType = (Enum and Enum.PowerType and Enum.PowerType.Mana) or 0
+
 -- *** Threat ***
 -- Classic Era exposes the threat functions but they return nil for most units
 -- because the server does not broadcast threat. Callers already handle nil, we
