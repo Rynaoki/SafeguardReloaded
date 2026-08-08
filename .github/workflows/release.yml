@@ -22,9 +22,15 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           mkdir -p build/SafeguardReloaded
+          # NpcDatabase.lua and ZoneDatabase.lua are kept in the repository for
+          # reference but are not listed in any .toc, so shipping them would add
+          # ~1.9 MB to every download for data the client never loads.
           rsync -a --exclude '.git' \
                    --exclude '.github' \
+                   --exclude '.gitignore' \
                    --exclude 'build' \
+                   --exclude 'NpcDatabase.lua' \
+                   --exclude 'ZoneDatabase.lua' \
                    ./ build/SafeguardReloaded/
           (cd build && zip -r "../SafeguardReloaded-${version}.zip" SafeguardReloaded)
           echo "ASSET=SafeguardReloaded-${version}.zip" >> "$GITHUB_ENV"
