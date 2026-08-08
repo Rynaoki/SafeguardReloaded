@@ -142,22 +142,47 @@ function EM.EventHandlers.CHAT_MSG_ADDON(self, prefix, text, channel, sender, ta
   MessageManager:OnChatMessageAddonEvent(prefix, text, channel, sender, target, zoneChannelID, localID, name, instanceID)
 end
 
-local AurasToNotify = {
-  ["Blessing of Protection"] = true,
-  ["Divine Intervention"] = true,
-  ["Divine Protection"] = true,
-  ["Divine Shield"] = true,
-  ["Feign Death"] = true, -- unconfirmed
-  ["Ice Block"] = true, -- unconfirmed
-  ["Invulnerability"] = true, -- unconfirmed Limited Invulnerability Potion
-  ["Light of Elune"] = true, -- unconfirmed
-  ["Petrification"] = true, --unconfirmed Flask of Petrification
-  ["Vanish"] = true, -- unconfirmed
-}
+-- Spell names in the combat log come through in the client's language, so a table
+-- keyed by English names only ever matches on an English client. Resolving the
+-- name from a spell id at load time gives the right string on every locale, and
+-- because every rank of a spell shares one name, a single id covers all ranks.
+--
+-- The English names are kept as fallbacks: if an id cannot be resolved the addon
+-- still behaves exactly as it did before.
+local function BuildSpellNameSet(entries)
+  local names = {}
 
-local SpellsToNotifyOnCastStart = {
-  ["Hearthstone"] = true,
-}
+  for englishName, spellId in pairs(entries) do
+    names[englishName] = true
+
+    if (spellId) then
+      local localisedName = Compat.GetSpellName(spellId)
+      if (localisedName) then names[localisedName] = true end
+    end
+  end
+
+  return names
+end
+
+local AurasToNotify = BuildSpellNameSet({
+  ["Blessing of Protection"] = 1022,
+  ["Divine Intervention"] = 19752,
+  ["Divine Protection"] = 498,
+  ["Divine Shield"] = 642,
+  ["Feign Death"] = 5384,
+  ["Vanish"] = 1856,
+  -- No verified Classic Era spell id yet, so these still only match in English.
+  -- Note the sentinel is false, not nil: a nil value would drop the key from the
+  -- table constructor entirely and lose the English fallback with it.
+  ["Ice Block"] = false,
+  ["Invulnerability"] = false, -- Limited Invulnerability Potion
+  ["Light of Elune"] = false,
+  ["Petrification"] = false, -- Flask of Petrification
+})
+
+local SpellsToNotifyOnCastStart = BuildSpellNameSet({
+  ["Hearthstone"] = 8690,
+})
 
 local combatLogHostileEvents = { }
 do
@@ -186,14 +211,18 @@ function EM.EventHandlers.COMBAT_LOG_EVENT_UNFILTERED(self)
     -- Note: SPELL_CAST_FAILED events are not triggered for other players' failed spell casts.
     local _, spellName = select(12, CombatLogGetCurrentEventInfo())
     if (SpellsToNotifyOnCastStart[spellName]) then
-      if (sourceGuid == UnitGUID("player") and UnitInParty("player")) then
+      -- GetGroupChatChannel covers party, raid and instance groups; the previous
+      -- UnitInParty check was false in a raid, so nothing was ever announced there.
+      if (sourceGuid == UnitGUID("player") and Compat.GetGroupChatChannel()) then
         MessageManager:SendMessageToGroup(SgEnum.AddonMessageType.SpellCastInterrupted, spellName)
       end
     end
   elseif (event == "SPELL_CAST_START") then
     local _, spellName = select(12, CombatLogGetCurrentEventInfo())
     if (SpellsToNotifyOnCastStart[spellName]) then
-      if (sourceGuid == UnitGUID("player") and UnitInParty("player")) then
+      -- GetGroupChatChannel covers party, raid and instance groups; the previous
+      -- UnitInParty check was false in a raid, so nothing was ever announced there.
+      if (sourceGuid == UnitGUID("player") and Compat.GetGroupChatChannel()) then
         MessageManager:SendMessageToGroup(SgEnum.AddonMessageType.SpellCastStarted, spellName)
       end
       

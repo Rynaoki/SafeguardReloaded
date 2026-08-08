@@ -71,6 +71,27 @@ function Compat.GetGroupChatChannel()
   return nil
 end
 
+-- *** Spells ***
+-- Returns the spell name in the client's own language. GetSpellInfo was folded
+-- into the C_Spell namespace and changed shape along the way, so try each form.
+
+function Compat.GetSpellName(spellId)
+  if (C_Spell and C_Spell.GetSpellName) then
+    return C_Spell.GetSpellName(spellId)
+  end
+
+  if (C_Spell and C_Spell.GetSpellInfo) then
+    local info = C_Spell.GetSpellInfo(spellId)
+    return info and info.name
+  end
+
+  if (type(GetSpellInfo) == "function") then
+    return (GetSpellInfo(spellId))
+  end
+
+  return nil
+end
+
 -- *** Threat ***
 -- Classic Era exposes the threat functions but they return nil for most units
 -- because the server does not broadcast threat. Callers already handle nil, we
