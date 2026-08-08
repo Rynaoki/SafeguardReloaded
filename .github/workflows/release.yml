@@ -1,0 +1,36 @@
+name: Release
+
+# Packages the addon into an installable zip whenever a version tag is pushed.
+# The archive contains a single SafeguardReloaded/ folder so it can be dropped
+# straight into Interface/AddOns.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build addon zip
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p build/SafeguardReloaded
+          rsync -a --exclude '.git' \
+                   --exclude '.github' \
+                   --exclude 'build' \
+                   ./ build/SafeguardReloaded/
+          (cd build && zip -r "../SafeguardReloaded-${version}.zip" SafeguardReloaded)
+          echo "ASSET=SafeguardReloaded-${version}.zip" >> "$GITHUB_ENV"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
+          body_path: CHANGELOG.md

@@ -1,0 +1,16 @@
+# WoW / addon artifacts
+*.zip
+.release/
+SavedVariables/
+*.bak
+*.old
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
