@@ -14,8 +14,8 @@ local Compat = SafeguardReloaded_Compat
 local IntervalManager = Safeguard_IntervalManager
 local MessageManager = Safeguard_MessageManager
 
-local ADDON_NAME = "SafeguardReloaded"
-local CHAT_PREFIX = "[SafeguardReloaded] "
+local ADDON_NAME = Compat.AddonName
+local CHAT_PREFIX = Compat.ChatPrefix
 
 -- Slash Commands
 

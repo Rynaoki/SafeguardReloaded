@@ -10,6 +10,11 @@ local Compat = SafeguardReloaded_Compat
 
 Compat.AddonName = "SafeguardReloaded"
 
+-- Deliberately shorter than the addon name. This is prepended to every line the
+-- addon puts in chat, including messages sent to the whole group, where the full
+-- name crowds out the message itself.
+Compat.ChatPrefix = "[Safeguard] "
+
 -- *** Console variables ***
 -- GetCVar/SetCVar moved into the C_CVar namespace. The globals still exist on
 -- 1.15.x but are deprecated, so prefer the namespaced versions.
@@ -165,7 +170,7 @@ function Compat.OpenOptionsPanel(category, name)
     -- inside a slash handler leaves the chat edit box uncleared, which looks to
     -- the player like the Enter key stopped working. Bail out loudly instead.
     if (type(categoryId) ~= "number") then
-      print("[SafeguardReloaded] Could not open the options panel. " ..
+      print(Compat.ChatPrefix .. "Could not open the options panel. " ..
         "Open it from Game Menu > Options > AddOns > " .. tostring(name) .. " instead.")
       return
     end

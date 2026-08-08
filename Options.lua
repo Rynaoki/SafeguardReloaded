@@ -2,7 +2,7 @@ Safeguard_OptionWindow = CreateFrame("Frame", "SafeguardReloadedOptionsFrame", U
 
 local Compat = SafeguardReloaded_Compat
 
-local CHAT_PREFIX = "[SafeguardReloaded] "
+local CHAT_PREFIX = Compat.ChatPrefix
 
 function Safeguard_OptionWindow:Initialize()
   self.Header = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")

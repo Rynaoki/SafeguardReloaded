@@ -4,6 +4,8 @@ Safeguard_NotificationManager = {
 
 local NM = Safeguard_NotificationManager
 
+local Compat = SafeguardReloaded_Compat
+
 function NM:ShowNotificationToPlayer(playerWhoNotified, notificationType, arg1, arg2)
   if (not Safeguard_Settings.Options.EnableTextNotifications) then return end
 
@@ -236,7 +238,7 @@ function NM:GetNotification(playerWhoNotified, notificationType, arg1, arg2)
     return string.format("%s has %d extra attacks stored.", arg1, arg2)
   end
 
-  print("[SafeguardReloaded] No notification for notification type " .. tostring(notificationType))
+  print(Compat.ChatPrefix .. "No notification for notification type " .. tostring(notificationType))
   return nil
 end
 

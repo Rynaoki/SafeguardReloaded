@@ -9,7 +9,7 @@ local MM = Safeguard_MessageManager
 
 local Compat = SafeguardReloaded_Compat
 
-local CHAT_PREFIX = "[SafeguardReloaded] "
+local CHAT_PREFIX = Compat.ChatPrefix
 
 function MM:OnChatMessageAddonEvent(prefix, text, channel, sender, target, zoneChannelID, localID, name, instanceID)
   if (prefix ~= self.AddonMessagePrefix) then return end
