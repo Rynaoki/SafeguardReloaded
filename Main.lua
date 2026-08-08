@@ -147,24 +147,29 @@ end
 -- name from a spell id at load time gives the right string on every locale, and
 -- because every rank of a spell shares one name, a single id covers all ranks.
 --
--- The English names are kept as fallbacks: if an id cannot be resolved the addon
+-- The lookup maps every name the client might report back to the English one. All
+-- messages and notifications then use the English name regardless of client
+-- language, which keeps a sentence like "My Hearthstone cast has been stopped."
+-- in one language and means a group of mixed-locale clients reads the same text.
+--
+-- The English names are kept as keys too: if an id cannot be resolved the addon
 -- still behaves exactly as it did before.
-local function BuildSpellNameSet(entries)
-  local names = {}
+local function BuildSpellNameLookup(entries)
+  local lookup = {}
 
   for englishName, spellId in pairs(entries) do
-    names[englishName] = true
+    lookup[englishName] = englishName
 
     if (spellId) then
       local localisedName = Compat.GetSpellName(spellId)
-      if (localisedName) then names[localisedName] = true end
+      if (localisedName) then lookup[localisedName] = englishName end
     end
   end
 
-  return names
+  return lookup
 end
 
-local AurasToNotify = BuildSpellNameSet({
+local AurasToNotify = BuildSpellNameLookup({
   ["Blessing of Protection"] = 1022,
   ["Divine Intervention"] = 19752,
   ["Divine Protection"] = 498,
@@ -180,7 +185,7 @@ local AurasToNotify = BuildSpellNameSet({
   ["Petrification"] = false, -- Flask of Petrification
 })
 
-local SpellsToNotifyOnCastStart = BuildSpellNameSet({
+local SpellsToNotifyOnCastStart = BuildSpellNameLookup({
   ["Hearthstone"] = 8690,
 })
 
@@ -204,30 +209,36 @@ function EM.EventHandlers.COMBAT_LOG_EVENT_UNFILTERED(self)
 
   if (event == "SPELL_AURA_APPLIED") then
     local spellId, spellName, spellSchool, auraType = select(12, CombatLogGetCurrentEventInfo())
-    if (AurasToNotify[spellName]) then
-      Safeguard_NotificationManager:ShowNotificationToPlayer(destName, SgEnum.NotificationType.AuraApplied, spellName)
+    -- The lookup returns the English name for whatever the client reported, so the
+    -- text stays in one language rather than mixing an English sentence with a
+    -- translated spell name.
+    local watchedSpell = AurasToNotify[spellName]
+    if (watchedSpell) then
+      Safeguard_NotificationManager:ShowNotificationToPlayer(destName, SgEnum.NotificationType.AuraApplied, watchedSpell)
     end
   elseif (event == "SPELL_CAST_FAILED") then
     -- Note: SPELL_CAST_FAILED events are not triggered for other players' failed spell casts.
     local _, spellName = select(12, CombatLogGetCurrentEventInfo())
-    if (SpellsToNotifyOnCastStart[spellName]) then
+    local watchedSpell = SpellsToNotifyOnCastStart[spellName]
+    if (watchedSpell) then
       -- GetGroupChatChannel covers party, raid and instance groups; the previous
       -- UnitInParty check was false in a raid, so nothing was ever announced there.
       if (sourceGuid == UnitGUID("player") and Compat.GetGroupChatChannel()) then
-        MessageManager:SendMessageToGroup(SgEnum.AddonMessageType.SpellCastInterrupted, spellName)
+        MessageManager:SendMessageToGroup(SgEnum.AddonMessageType.SpellCastInterrupted, watchedSpell)
       end
     end
   elseif (event == "SPELL_CAST_START") then
     local _, spellName = select(12, CombatLogGetCurrentEventInfo())
-    if (SpellsToNotifyOnCastStart[spellName]) then
+    local watchedSpell = SpellsToNotifyOnCastStart[spellName]
+    if (watchedSpell) then
       -- GetGroupChatChannel covers party, raid and instance groups; the previous
       -- UnitInParty check was false in a raid, so nothing was ever announced there.
       if (sourceGuid == UnitGUID("player") and Compat.GetGroupChatChannel()) then
-        MessageManager:SendMessageToGroup(SgEnum.AddonMessageType.SpellCastStarted, spellName)
+        MessageManager:SendMessageToGroup(SgEnum.AddonMessageType.SpellCastStarted, watchedSpell)
       end
-      
+
       if (sourceGuid ~= UnitGUID("player") and UnitHelperFunctions.IsUnitGuidInOurPartyOrRaid(sourceGuid)) then
-        Safeguard_NotificationManager:ShowNotificationToPlayer(sourceName, SgEnum.NotificationType.SpellCastStarted, spellName)
+        Safeguard_NotificationManager:ShowNotificationToPlayer(sourceName, SgEnum.NotificationType.SpellCastStarted, watchedSpell)
       end
     end
   elseif (event == "SPELL_EXTRA_ATTACKS") then
