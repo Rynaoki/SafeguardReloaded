@@ -125,8 +125,21 @@ function Compat.RegisterOptionsPanel(frame, name)
 end
 
 function Compat.OpenOptionsPanel(category, name)
+  -- The category object exposes its id as a GetID method on some builds and as a
+  -- plain ID field on others. Calling the method blindly errors where it is
+  -- missing, and an error raised inside a slash handler leaves the chat edit box
+  -- uncleared, which looks to the player like the Enter key stopped working.
+  local categoryId = name
+  if (category) then
+    if (type(category.GetID) == "function") then
+      categoryId = category:GetID()
+    elseif (category.ID ~= nil) then
+      categoryId = category.ID
+    end
+  end
+
   if (Settings and Settings.OpenToCategory) then
-    Settings.OpenToCategory(category and category:GetID() or name)
+    Settings.OpenToCategory(categoryId)
     return
   end
 
