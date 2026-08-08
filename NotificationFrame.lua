@@ -27,6 +27,10 @@ local EDGE_FADE_WIDTH = 24    -- width over which the backdrop fades out sideway
 local ROW_SPACING = 3
 local MAX_TEXT_WIDTH = 520    -- wrap rather than run off the screen
 
+-- Vertical gap below the game's own error text. Lower this to move the messages
+-- further up the screen; 0 puts them directly beneath it.
+local GAP_BELOW_ERRORS_FRAME = 4
+
 -- Texture:SetGradient took loose colour components before it was changed to take
 -- ColorMixin objects, so pick whichever this client understands.
 local function SetHorizontalAlphaGradient(texture, startAlpha, endAlpha)
@@ -101,9 +105,9 @@ function NF:Initialize()
   -- Anchored under the game's own error text so the two never overlap, and so the
   -- frame follows along if another addon has moved UIErrorsFrame.
   if (UIErrorsFrame) then
-    self:SetPoint("TOP", UIErrorsFrame, "BOTTOM", 0, -24)
+    self:SetPoint("TOP", UIErrorsFrame, "BOTTOM", 0, -GAP_BELOW_ERRORS_FRAME)
   else
-    self:SetPoint("TOP", UIParent, "TOP", 0, -240)
+    self:SetPoint("TOP", UIParent, "TOP", 0, -200)
   end
 
   self.Rows = {}
