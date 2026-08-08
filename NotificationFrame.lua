@@ -2,16 +2,14 @@
 -- Notifications used to go through UIErrorsFrame, which draws flat white text with
 -- no outline. Over a bright background -- snow, sand, a lit interior -- that is
 -- close to unreadable, and these are the messages a player can least afford to
--- miss. This draws them as outlined white text on a dimmed strip instead.
+-- miss. The outline is what fixes that; no backdrop, by preference.
 --
 -- Deliberately not reusing UIErrorsFrame, because restyling it would also restyle
 -- every ordinary game error.
 --
--- Messages are managed row by row rather than handed to a MessageFrame, because a
--- MessageFrame reports neither the width of a line nor the height it is using, so
--- there is no way to size a backdrop to the text. Each row carries its own backdrop
--- sized to its own text, which also means a short message does not sit in front of
--- a wide black bar.
+-- Messages are managed row by row rather than handed to a MessageFrame. That keeps
+-- control over wrapping, which a MessageFrame does not do, so a long mob name in an
+-- extra attacks message cannot run off the edge of the screen.
 
 SafeguardReloaded_NotificationFrame = CreateFrame("Frame", "SafeguardReloadedNotificationFrame", UIParent)
 
@@ -20,53 +18,15 @@ local NF = SafeguardReloaded_NotificationFrame
 local MAX_ROWS = 4
 local TIME_VISIBLE = 3.0
 local FADE_DURATION = 1.0
-local BACKDROP_ALPHA = 0.55
-local PADDING_X = 10          -- solid backdrop kept either side of the text
-local PADDING_Y = 4
-local EDGE_FADE_WIDTH = 24    -- width over which the backdrop fades out sideways
 local ROW_SPACING = 3
 local MAX_TEXT_WIDTH = 520    -- wrap rather than run off the screen
 
--- Vertical gap below the game's own error text. Lower this to move the messages
--- further up the screen; 0 puts them directly beneath it.
+-- Vertical gap below the game's own error text. Raise this to move the messages
+-- further down the screen; 0 puts them directly beneath it.
 local GAP_BELOW_ERRORS_FRAME = 0
 
--- Texture:SetGradient took loose colour components before it was changed to take
--- ColorMixin objects, so pick whichever this client understands.
-local function SetHorizontalAlphaGradient(texture, startAlpha, endAlpha)
-  if (texture.SetGradient and CreateColor) then
-    texture:SetGradient("HORIZONTAL", CreateColor(0, 0, 0, startAlpha), CreateColor(0, 0, 0, endAlpha))
-    return
-  end
-
-  if (texture.SetGradientAlpha) then
-    texture:SetGradientAlpha("HORIZONTAL", 0, 0, 0, startAlpha, 0, 0, 0, endAlpha)
-    return
-  end
-
-  -- No gradient support: a flat strip still beats unreadable text.
-  texture:SetColorTexture(0, 0, 0, endAlpha)
-end
-
--- Anchors are set once here. They are all relative, so resizing the row to fit its
--- text is enough to move the backdrop with it.
 local function CreateRow(fontName)
   local row = CreateFrame("Frame", nil, NF)
-
-  row.Center = row:CreateTexture(nil, "BACKGROUND")
-  row.Center:SetPoint("TOPLEFT", row, "TOPLEFT", EDGE_FADE_WIDTH, 0)
-  row.Center:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -EDGE_FADE_WIDTH, 0)
-  row.Center:SetColorTexture(0, 0, 0, BACKDROP_ALPHA)
-
-  row.Left = row:CreateTexture(nil, "BACKGROUND")
-  row.Left:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
-  row.Left:SetPoint("BOTTOMRIGHT", row.Center, "BOTTOMLEFT", 0, 0)
-  SetHorizontalAlphaGradient(row.Left, 0, BACKDROP_ALPHA)
-
-  row.Right = row:CreateTexture(nil, "BACKGROUND")
-  row.Right:SetPoint("TOPLEFT", row.Center, "TOPRIGHT", 0, 0)
-  row.Right:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
-  SetHorizontalAlphaGradient(row.Right, BACKDROP_ALPHA, 0)
 
   row.Text = row:CreateFontString(nil, "OVERLAY", fontName)
   row.Text:SetPoint("CENTER", row, "CENTER", 0, 0)
@@ -181,10 +141,7 @@ function NF:ShowNotification(text)
     row.Text:SetWidth(MAX_TEXT_WIDTH)
   end
 
-  row:SetSize(
-    textWidth + (PADDING_X + EDGE_FADE_WIDTH) * 2,
-    row.Text:GetStringHeight() + PADDING_Y * 2
-  )
+  row:SetSize(textWidth, row.Text:GetStringHeight())
 
   row.Active = true
   row.FadeOut:Stop()
