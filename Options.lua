@@ -6,15 +6,17 @@ local CHAT_PREFIX = "[SafeguardReloaded] "
 
 function Safeguard_OptionWindow:Initialize()
   self.Header = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-  self.Header:SetPoint("TOPLEFT", 10, 0)
+  self.Header:SetPoint("TOPLEFT", 10, -12)
   self.Header:SetText("SafeguardReloaded Options")
 
+  -- Sits on the title's baseline rather than on a line of its own, so the credit
+  -- line costs no vertical space in an already tall panel.
   self.Subheader = self:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  self.Subheader:SetPoint("TOPLEFT", 12, -18)
+  self.Subheader:SetPoint("BOTTOMLEFT", self.Header, "BOTTOMRIGHT", 12, 1)
   self.Subheader:SetText("v" .. tostring(Compat.GetAddOnMetadata("Version")) ..
-    " by Rynaoki  |  based on Safeguard by Tollski")
+    "  by Rynaoki  |  based on Safeguard by Tollski")
 
-  local yPos = -35
+  local yPos = -55
 
   self.cbEnableChatMessages = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
   self.cbEnableChatMessages:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
