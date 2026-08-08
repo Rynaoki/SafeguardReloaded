@@ -29,7 +29,7 @@ local MAX_TEXT_WIDTH = 520    -- wrap rather than run off the screen
 
 -- Vertical gap below the game's own error text. Lower this to move the messages
 -- further up the screen; 0 puts them directly beneath it.
-local GAP_BELOW_ERRORS_FRAME = 4
+local GAP_BELOW_ERRORS_FRAME = 0
 
 -- Texture:SetGradient took loose colour components before it was changed to take
 -- ColorMixin objects, so pick whichever this client understands.
