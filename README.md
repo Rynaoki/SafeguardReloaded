@@ -41,6 +41,8 @@ The options panel is also reachable through the minimap addon compartment and vi
 
 Alerts you when your health is low by flashing the screen and playing a sound.
 
+Optionally alerts you when your mana drops below a threshold you set. Off by default.
+
 Optionally forces the "Floating Combat Text" interface option to stay enabled.
 
 Optionally shows a timer tracking when you will be unflagged from PvP.
@@ -51,6 +53,7 @@ Onscreen notifications when:
 * You or a nearby player is affected by certain threat-altering effects.
 * You or a group member enters combat.
 * You or a group member has low health.
+* You or a group member has low mana, if you enable it.
 * You are flagged for PvP.
 * A group member casts certain spells (e.g. Hearthstone).
 * A group member is crowd controlled (e.g. stunned, silenced).
@@ -61,6 +64,7 @@ Onscreen notifications when:
 Automatic chat messages to your group when:
 
 * You have critically low health.
+* You have low mana, if you enable it.
 * You cast certain spells (e.g. Hearthstone).
 * You are crowd controlled (e.g. stunned, silenced).
 * You are logging out.
@@ -106,6 +110,7 @@ HelperFunctions.lua        Generic Lua helpers
 IntervalManager.lua        Periodic combat, connection and heartbeat checks
 Main.lua                   Event registration and handlers
 MessageManager.lua         Addon and chat message send/receive
+NotificationFrame.lua      Draws the onscreen notifications
 NotificationManager.lua    Builds and throttles onscreen notifications
 Options.lua                Options panel
 PlayerStates.lua           Per-player state structs

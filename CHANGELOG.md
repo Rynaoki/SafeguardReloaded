@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.3.3
+
+### New
+
+* **Low mana alerts.** Off by default. Switch them on in the options, set your own
+  threshold, and you get an onscreen notification and an optional party chat message
+  when your mana drops below it. Group members running the addon are covered too.
+
+  One threshold rather than the two health uses, because there is no useful
+  difference between low and critically low mana. The alert fires on the way down
+  and not again until mana has recovered past the threshold, so hovering either side
+  of the line does not produce a stream of messages.
+
+### Changes
+
+* **Onscreen notifications are far easier to read.** They no longer go through the
+  game's error frame, which draws flat white text with no outline — over snow, sand
+  or a lit interior that was close to unreadable, on exactly the messages you can
+  least afford to miss. They are now drawn with an outlined font in a frame of their
+  own, sitting directly below the game's error text.
+
+  Long messages wrap instead of running off the edge of the screen, which the error
+  frame did not do. A long mob name in an extra attacks warning stays on screen.
+
+  The game's own error messages are deliberately left untouched.
+* `/sgrtest` now shows two sample notifications, so the onscreen text can be checked
+  without waiting for something to actually go wrong.
+
+---
+
 ## 1.3.2
 
 ### Fixes
