@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### New
+
+* **Separate onscreen notification switches for low mana**, one for yourself and one
+  for your group, matching how low health already worked. Previously every mana
+  notification hung off the single "enable low mana alerts" switch.
+
+### Changes
+
+* **The options panel has been rebuilt.** It is now split into five labelled
+  sections — low health, low mana, chat messages, onscreen notifications and
+  interface — with the alerts first, since that is what the addon is for.
+
+  The notification switches sit in a proper grid under **You** and **Party** column
+  headings. They used to be scattered across offsets that differed from block to
+  block, so nothing lined up vertically. Where a column does not apply to a row it
+  now shows a dash rather than an empty space that looks like a missing checkbox.
+
+  The panel scrolls, so the lower rows can no longer be cut off at smaller
+  resolutions or higher UI scales.
+
+  Clicking a label toggles its checkbox — previously only the small box itself
+  responded — and a change is saved the moment you make it instead of when the panel
+  closes.
+
+  Options whose parent switch is off are greyed out, which replaces the static
+  "(Requires Low Health Alerts)" note next to a control that still looked active.
+
 ### Fixes
 
 * **Low health alerts could leave your dialog volume stuck at maximum.** The alert

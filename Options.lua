@@ -1,8 +1,26 @@
 Safeguard_OptionWindow = CreateFrame("Frame", "SafeguardReloadedOptionsFrame", UIParent)
 
+local OW = Safeguard_OptionWindow
+
 local Compat = SafeguardReloaded_Compat
 
 local CHAT_PREFIX = Compat.ChatPrefix
+
+-- *** Layout ***
+-- Every control used to sit on a hand-picked x offset, and the offsets drifted
+-- between sections: the You/Party pair sat at 280/350 in one block and 280/420 in
+-- another, so no two rows lined up. Positions now come from these constants, which
+-- means a new row lands in the right place without anyone measuring anything.
+
+local INDENT_TOP = 8        -- a switch that owns a section
+local INDENT_SUB = 30       -- a switch that depends on the one above it
+local COLUMN_2 = 300        -- second column for paired sub-options
+local GRID_SELF = 330       -- notification grid, "You" column centre
+local GRID_GROUP = 400      -- notification grid, "Party" column centre
+local ROW_STEP = 22
+local SECTION_GAP = 14
+local CHECKBOX_SIZE = 24
+local CONTENT_BOTTOM_PAD = 20
 
 -- Both threshold fields hold a two digit percentage and cap out at two letters, so
 -- the moment a saved value is loaded they are full and the client rejects every
@@ -12,9 +30,9 @@ local CHAT_PREFIX = Compat.ChatPrefix
 -- it, type the new number, and it replaces the old one. Enter and Escape both give
 -- up focus, and leaving the field writes the value straight away rather than
 -- waiting for the panel to be closed.
-local function CreateThresholdEditBox(parent, xOffset, yPos)
+local function CreateThresholdEditBox(parent, xOffset, yPos, labelText)
   local editBox = CreateFrame("EditBox", nil, parent, BackdropTemplateMixin and "BackdropTemplate")
-  editBox:SetPoint("LEFT", parent, "TOPLEFT", xOffset, yPos)
+  editBox:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yPos - 2)
   editBox:SetSize(28, 20)
   editBox:SetFontObject(ChatFontNormal)
   editBox:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10 })
@@ -29,358 +47,356 @@ local function CreateThresholdEditBox(parent, xOffset, yPos)
 
   editBox:SetScript("OnEditFocusLost", function(self)
     self:HighlightText(0, 0)
-    Safeguard_OptionWindow:SaveOptions()
+    OW:SaveOptions()
   end)
 
   editBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
   editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
+  editBox.Label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  editBox.Label:SetPoint("LEFT", editBox, "RIGHT", 8, 0)
+  editBox.Label:SetText(labelText)
+
   return editBox
 end
 
-function Safeguard_OptionWindow:Initialize()
+-- A checkbox and its label behave as one control. The label used to be a separate
+-- font string, so only the 24 pixel box itself was clickable; extending the hit
+-- rect to the right makes the whole row respond.
+local function CreateCheckbox(parent, xOffset, yPos, labelText, subText)
+  local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+  checkbox:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yPos)
+  checkbox:SetSize(CHECKBOX_SIZE, CHECKBOX_SIZE)
+
+  checkbox.Label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  checkbox.Label:SetPoint("LEFT", checkbox, "RIGHT", 2, 0)
+  checkbox.Label:SetText(labelText)
+
+  local hitWidth = checkbox.Label:GetStringWidth() + 6
+
+  if (subText) then
+    checkbox.SubLabel = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    checkbox.SubLabel:SetPoint("LEFT", checkbox.Label, "RIGHT", 6, 0)
+    checkbox.SubLabel:SetText(subText)
+  end
+
+  checkbox:SetHitRectInsets(0, -hitWidth, 0, 0)
+
+  -- Saving on click rather than only on panel close means a toggle takes effect
+  -- immediately, which matters for the options that redraw something.
+  checkbox:SetScript("OnClick", function() OW:SaveOptions() end)
+
+  return checkbox
+end
+
+-- A checkbox with no label, used inside the notification grid where the row label
+-- and the column heading already say what it is.
+local function CreateGridCheckbox(parent, centreX, yPos)
+  local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+  checkbox:SetPoint("TOPLEFT", parent, "TOPLEFT", centreX - (CHECKBOX_SIZE / 2), yPos)
+  checkbox:SetSize(CHECKBOX_SIZE, CHECKBOX_SIZE)
+  checkbox:SetScript("OnClick", function() OW:SaveOptions() end)
+  return checkbox
+end
+
+-- Marks a column that does not apply to a row, so the gap reads as deliberate
+-- rather than as a checkbox somebody forgot.
+local function CreateGridDash(parent, centreX, yPos)
+  local dash = parent:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  dash:SetPoint("TOPLEFT", parent, "TOPLEFT", centreX - 4, yPos - 6)
+  dash:SetText("--")
+  return dash
+end
+
+local function CreateSectionHeader(parent, yPos, titleText)
+  local header = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  header:SetPoint("TOPLEFT", parent, "TOPLEFT", INDENT_TOP, yPos)
+  header:SetText(titleText)
+
+  local line = parent:CreateTexture(nil, "ARTWORK")
+  line:SetColorTexture(1, 1, 1, 0.12)
+  line:SetHeight(1)
+  line:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -4)
+  line:SetPoint("RIGHT", parent, "RIGHT", -20, 0)
+
+  return header
+end
+
+local function CreateRowLabel(parent, xOffset, yPos, labelText)
+  local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  label:SetPoint("TOPLEFT", parent, "TOPLEFT", xOffset, yPos - 6)
+  label:SetText(labelText)
+  return label
+end
+
+-- Greys a control out instead of leaving it looking active but doing nothing,
+-- which is the usual reason someone thinks a setting is broken.
+local function SetControlEnabled(control, enabled)
+  if (not control) then return end
+
+  if (control.SetEnabled) then
+    control:SetEnabled(enabled and true or false)
+  elseif (enabled) then
+    control:Enable()
+  else
+    control:Disable()
+  end
+
+  if (control.Label) then
+    control.Label:SetFontObject(enabled and "GameFontHighlight" or "GameFontDisable")
+  end
+  if (control.SubLabel) then
+    control.SubLabel:SetFontObject(enabled and "GameFontHighlightSmall" or "GameFontDisableSmall")
+  end
+end
+
+local function SetLabelEnabled(label, enabled)
+  if (not label) then return end
+  label:SetFontObject(enabled and "GameFontHighlight" or "GameFontDisable")
+end
+
+function OW:Initialize()
+  if (self.Initialized) then return end
+
   self.Header = self:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-  self.Header:SetPoint("TOPLEFT", 10, -12)
-  self.Header:SetText("SafeguardReloaded Options")
+  self.Header:SetPoint("TOPLEFT", 14, -12)
+  self.Header:SetText("SafeguardReloaded")
 
   -- Sits on the title's baseline rather than on a line of its own, so the credit
-  -- line costs no vertical space in an already tall panel.
+  -- line costs no vertical space.
   self.Subheader = self:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   self.Subheader:SetPoint("BOTTOMLEFT", self.Header, "BOTTOMRIGHT", 12, 1)
   self.Subheader:SetText("v" .. tostring(Compat.GetAddOnMetadata("Version")) ..
     "  by Rynaoki  |  based on Safeguard by Tollski")
 
-  local yPos = -55
+  -- The panel is taller than the canvas on smaller resolutions, and without a
+  -- scroll frame the last rows were simply unreachable.
+  local scrollFrame = CreateFrame("ScrollFrame", nil, self, "UIPanelScrollFrameTemplate")
+  scrollFrame:SetPoint("TOPLEFT", self, "TOPLEFT", 10, -40)
+  scrollFrame:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -28, 10)
+  self.ScrollFrame = scrollFrame
 
-  self.cbEnableChatMessages = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableChatMessages:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
-  self.fsEnableChatMessages = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableChatMessages:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
-  self.fsEnableChatMessages:SetText("Enable Chat Messages to Party")
-  yPos = yPos - 22
+  local content = CreateFrame("Frame", nil, scrollFrame)
+  content:SetSize(1, 1)
+  scrollFrame:SetScrollChild(content)
+  self.Content = content
 
-  self.cbEnableChatMessagesLogout = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableChatMessagesLogout:SetPoint("LEFT", self, "TOPLEFT", 30, yPos)
-  self.fsEnableChatMessagesLogout = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableChatMessagesLogout:SetPoint("LEFT", self, "TOPLEFT", 60, yPos)
-  self.fsEnableChatMessagesLogout:SetText("You Are Logging Out")
+  -- The canvas has no size yet while the addon is loading, so the scroll child
+  -- takes its width from the scroll frame whenever that changes.
+  scrollFrame:SetScript("OnSizeChanged", function(_, width)
+    if (width and width > 0) then content:SetWidth(width) end
+  end)
 
-  self.cbEnableChatMessagesLowHealth = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableChatMessagesLowHealth:SetPoint("LEFT", self, "TOPLEFT", 340, yPos)
-  self.fsEnableChatMessagesLowHealth = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableChatMessagesLowHealth:SetPoint("LEFT", self, "TOPLEFT", 370, yPos)
-  self.fsEnableChatMessagesLowHealth:SetText("Your Health Is Critically Low")
-  yPos = yPos - 22
+  local yPos = 0
 
-  self.cbEnableChatMessagesSpellCasts = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableChatMessagesSpellCasts:SetPoint("LEFT", self, "TOPLEFT", 30, yPos)
-  self.fsEnableChatMessagesSpellCasts = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableChatMessagesSpellCasts:SetPoint("LEFT", self, "TOPLEFT", 60, yPos)
-  self.fsEnableChatMessagesSpellCasts:SetText("You Cast Certain Spells")
-  self.fsEnableChatMessagesSpellCastsSubtext = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  self.fsEnableChatMessagesSpellCastsSubtext:SetPoint("LEFT", self, "TOPLEFT", 200, yPos)
-  self.fsEnableChatMessagesSpellCastsSubtext:SetText("(e.g. Hearthstone)")
+  -- *** Low health alerts ***
 
-  self.cbEnableChatMessagesLossOfControl = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableChatMessagesLossOfControl:SetPoint("LEFT", self, "TOPLEFT", 340, yPos)
-  self.fsEnableChatMessagesLossOfControl = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableChatMessagesLossOfControl:SetPoint("LEFT", self, "TOPLEFT", 370, yPos)
-  self.fsEnableChatMessagesLossOfControl:SetText("You Are Crowd Controlled")
-  self.fsEnableChatMessagesSpellCastsSubtext = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  self.fsEnableChatMessagesSpellCastsSubtext:SetPoint("LEFT", self, "TOPLEFT", 525, yPos)
-  self.fsEnableChatMessagesSpellCastsSubtext:SetText("(e.g. stunned, silenced)")
-  yPos = yPos - 22
+  CreateSectionHeader(content, yPos, "Low health alerts")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableChatMessagesExtraAttacksStored = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableChatMessagesExtraAttacksStored:SetPoint("LEFT", self, "TOPLEFT", 30, yPos)
-  self.fsEnableChatMessagesExtraAttacksStored = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableChatMessagesExtraAttacksStored:SetPoint("LEFT", self, "TOPLEFT", 60, yPos)
-  self.fsEnableChatMessagesExtraAttacksStored:SetText("A Deadly Enemy Targetting You Stores Extra Attacks")
-  yPos = yPos - 22
+  self.cbEnableLowHealthAlerts = CreateCheckbox(content, INDENT_TOP, yPos, "Enable low health alerts")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableLowHealthAlerts = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableLowHealthAlerts:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
-  self.fsEnableLowHealthAlerts = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableLowHealthAlerts:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
-  self.fsEnableLowHealthAlerts:SetText("Enable Low Health Alerts")
-  yPos = yPos - 22
+  self.ebLowHealthThreshold = CreateThresholdEditBox(content, INDENT_SUB, yPos, "Low health threshold %")
+  self.ebCriticalHealthThreshold = CreateThresholdEditBox(content, COLUMN_2, yPos, "Critically low threshold %")
+  yPos = yPos - ROW_STEP
 
-  self.ebLowHealthThreshold = CreateThresholdEditBox(self, 34, yPos)
-  self.fsLowHealthThreshold = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsLowHealthThreshold:SetPoint("LEFT", self, "TOPLEFT", 65, yPos)
-  self.fsLowHealthThreshold:SetText("Low Health %")
+  self.cbEnableLowHealthAlertScreenFlashing = CreateCheckbox(content, INDENT_SUB, yPos, "Flash the screen")
+  self.cbEnableLowHealthAlertSounds = CreateCheckbox(content, COLUMN_2 - 6, yPos, "Play an alert sound")
+  yPos = yPos - ROW_STEP - SECTION_GAP
 
-  self.ebCriticalHealthThreshold = CreateThresholdEditBox(self, 204, yPos)
-  self.fsCriticalHealthThreshold = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsCriticalHealthThreshold:SetPoint("LEFT", self, "TOPLEFT", 235, yPos)
-  self.fsCriticalHealthThreshold:SetText("Critically Low Health %")
-  yPos = yPos - 22
+  -- *** Low mana alerts ***
 
-  self.cbEnableLowHealthAlertScreenFlashing = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableLowHealthAlertScreenFlashing:SetPoint("LEFT", self, "TOPLEFT", 30, yPos)
-  self.fsEnableLowHealthAlertScreenFlashing = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableLowHealthAlertScreenFlashing:SetPoint("LEFT", self, "TOPLEFT", 60, yPos)
-  self.fsEnableLowHealthAlertScreenFlashing:SetText("Enable screen flashing.")
+  CreateSectionHeader(content, yPos, "Low mana alerts")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableLowHealthAlertSounds = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableLowHealthAlertSounds:SetPoint("LEFT", self, "TOPLEFT", 200, yPos)
-  self.fsEnableLowHealthAlertSounds = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableLowHealthAlertSounds:SetPoint("LEFT", self, "TOPLEFT", 230, yPos)
-  self.fsEnableLowHealthAlertSounds:SetText("Enable alert sounds.")
-  yPos = yPos - 22
+  self.cbEnableLowManaAlerts = CreateCheckbox(content, INDENT_TOP, yPos, "Enable low mana alerts")
+  yPos = yPos - ROW_STEP
 
-  self.fsLowHealthAlertNote = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsLowHealthAlertNote:SetPoint("LEFT", self, "TOPLEFT", 30, yPos)
-  self.fsLowHealthAlertNote:SetText("Note: Chat messages and notification settings can be set in their respective sections.")
-  yPos = yPos - 22
+  self.ebLowManaThreshold = CreateThresholdEditBox(content, INDENT_SUB, yPos, "Low mana threshold %")
+  yPos = yPos - ROW_STEP - SECTION_GAP
 
-  -- All three mana controls share one row. The panel has no scroll frame and its
-  -- last row is already close to the bottom of the canvas, so a self contained
-  -- feature that is off by default does not get to spend three rows on itself.
-  self.cbEnableLowManaAlerts = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate")
-  self.cbEnableLowManaAlerts:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
-  self.fsEnableLowManaAlerts = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableLowManaAlerts:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
-  self.fsEnableLowManaAlerts:SetText("Enable Low Mana Alerts")
+  -- *** Chat messages ***
 
-  self.ebLowManaThreshold = CreateThresholdEditBox(self, 204, yPos)
-  self.fsLowManaThreshold = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsLowManaThreshold:SetPoint("LEFT", self, "TOPLEFT", 235, yPos)
-  self.fsLowManaThreshold:SetText("Low Mana %")
+  CreateSectionHeader(content, yPos, "Chat messages to your group")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableChatMessagesLowMana = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate")
-  self.cbEnableChatMessagesLowMana:SetPoint("LEFT", self, "TOPLEFT", 340, yPos)
-  self.fsEnableChatMessagesLowMana = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableChatMessagesLowMana:SetPoint("LEFT", self, "TOPLEFT", 370, yPos)
-  self.fsEnableChatMessagesLowMana:SetText("Announce In Party Chat")
-  yPos = yPos - 22
+  self.cbEnableChatMessages = CreateCheckbox(content, INDENT_TOP, yPos, "Enable chat messages")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableTextNotifications = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate")
-  self.cbEnableTextNotifications:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
-  self.fsEnableTextNotifications = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotifications:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
-  self.fsEnableTextNotifications:SetText("Enable Onscreen Text Notifications")
-  yPos = yPos - 22
+  self.cbEnableChatMessagesLogout = CreateCheckbox(content, INDENT_SUB, yPos, "You are logging out")
+  self.cbEnableChatMessagesLowHealth = CreateCheckbox(content, COLUMN_2, yPos, "Your health is critically low")
+  yPos = yPos - ROW_STEP
 
-  self.fsEnableTextNotificationsCombatTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsCombatTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsCombatTitle:SetText("Enter Combat")
+  self.cbEnableChatMessagesLossOfControl = CreateCheckbox(content, INDENT_SUB, yPos, "You are crowd controlled")
+  self.cbEnableChatMessagesLowMana = CreateCheckbox(content, COLUMN_2, yPos, "You are low on mana")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableTextNotificationsCombatSelf = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsCombatSelf:SetPoint("LEFT", self, "TOPLEFT", 280, yPos)
-  self.fsEnableTextNotificationsCombatSelf = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsCombatSelf:SetPoint("LEFT", self, "TOPLEFT", 310, yPos)
-  self.fsEnableTextNotificationsCombatSelf:SetText("You")
+  self.cbEnableChatMessagesSpellCasts = CreateCheckbox(content, INDENT_SUB, yPos, "You cast certain spells", "(e.g. Hearthstone)")
+  self.cbEnableChatMessagesExtraAttacksStored = CreateCheckbox(content, COLUMN_2, yPos, "An enemy stores extra attacks")
+  yPos = yPos - ROW_STEP - SECTION_GAP
 
-  self.cbEnableTextNotificationsCombatGroup = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsCombatGroup:SetPoint("LEFT", self, "TOPLEFT", 350, yPos)
-  self.fsEnableTextNotificationsCombatGroup = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsCombatGroup:SetPoint("LEFT", self, "TOPLEFT", 380, yPos)
-  self.fsEnableTextNotificationsCombatGroup:SetText("Party")
-  yPos = yPos - 22
+  -- *** Onscreen notifications ***
 
-  self.fsEnableTextNotificationsConnectionTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsConnectionTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsConnectionTitle:SetText("Disconnect or Go Offline")
+  CreateSectionHeader(content, yPos, "Onscreen notifications")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableTextNotificationsConnectionSelf = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsConnectionSelf:SetPoint("LEFT", self, "TOPLEFT", 280, yPos)
-  self.fsEnableTextNotificationsConnectionSelf = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsConnectionSelf:SetPoint("LEFT", self, "TOPLEFT", 310, yPos)
-  self.fsEnableTextNotificationsConnectionSelf:SetText("You")
+  self.cbEnableTextNotifications = CreateCheckbox(content, INDENT_TOP, yPos, "Enable onscreen notifications")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableTextNotificationsConnectionGroup = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsConnectionGroup:SetPoint("LEFT", self, "TOPLEFT", 350, yPos)
-  self.fsEnableTextNotificationsConnectionGroup = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsConnectionGroup:SetPoint("LEFT", self, "TOPLEFT", 380, yPos)
-  self.fsEnableTextNotificationsConnectionGroup:SetText("Party*")
-  yPos = yPos - 22
+  self.fsGridHeaderSelf = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  self.fsGridHeaderSelf:SetPoint("TOPLEFT", content, "TOPLEFT", GRID_SELF - 12, yPos - 4)
+  self.fsGridHeaderSelf:SetText("You")
 
-  self.fsEnableTextNotificationsLogoutTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsLogoutTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsLogoutTitle:SetText("Logging Out")
+  self.fsGridHeaderGroup = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  self.fsGridHeaderGroup:SetPoint("TOPLEFT", content, "TOPLEFT", GRID_GROUP - 16, yPos - 4)
+  self.fsGridHeaderGroup:SetText("Party")
+  yPos = yPos - 18
 
-  self.cbEnableTextNotificationsLogout = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsLogout:SetPoint("LEFT", self, "TOPLEFT", 350, yPos)
-  self.fsEnableTextNotificationsLogout = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsLogout:SetPoint("LEFT", self, "TOPLEFT", 380, yPos)
-  self.fsEnableTextNotificationsLogout:SetText("Party*")
-  yPos = yPos - 22
+  self.NotificationRows = {}
 
-  self.fsEnableTextNotificationsLowHealthTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsLowHealthTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsLowHealthTitle:SetText("Low Health")
-  self.fsEnableTextNotificationsLowHealthSubtitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  self.fsEnableTextNotificationsLowHealthSubtitle:SetPoint("LEFT", self, "TOPLEFT", 105, yPos)
-  self.fsEnableTextNotificationsLowHealthSubtitle:SetText("(Requires Low Health Alerts)")
-  
-  self.cbEnableTextNotificationsLowHealthSelf = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsLowHealthSelf:SetPoint("LEFT", self, "TOPLEFT", 280, yPos)
-  self.fsEnableTextNotificationsLowHealthSelf = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsLowHealthSelf:SetPoint("LEFT", self, "TOPLEFT", 310, yPos)
-  self.fsEnableTextNotificationsLowHealthSelf:SetText("You")
+  -- Each entry is { label, selfControl, groupControl }. A nil control means the
+  -- column does not apply and gets a dash instead.
+  local function AddNotificationRow(labelText, selfKey, groupKey)
+    local row = {
+      Label = CreateRowLabel(content, INDENT_SUB, yPos, labelText),
+      SelfKey = selfKey,
+      GroupKey = groupKey,
+    }
 
-  self.cbEnableTextNotificationsLowHealthGroup = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsLowHealthGroup:SetPoint("LEFT", self, "TOPLEFT", 350, yPos)
-  self.fsEnableTextNotificationsLowHealthGroup = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsLowHealthGroup:SetPoint("LEFT", self, "TOPLEFT", 380, yPos)
-  self.fsEnableTextNotificationsLowHealthGroup:SetText("Party")
-  yPos = yPos - 22
+    if (selfKey) then
+      row.SelfControl = CreateGridCheckbox(content, GRID_SELF, yPos)
+    else
+      CreateGridDash(content, GRID_SELF, yPos)
+    end
 
-  self.fsEnableTextNotificationsSpellcastsTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsSpellcastsTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsSpellcastsTitle:SetText("Cast Certain Spells")
-  self.fsEnableTextNotificationsSpellcastsSubtitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  self.fsEnableTextNotificationsSpellcastsSubtitle:SetPoint("LEFT", self, "TOPLEFT", 148, yPos)
-  self.fsEnableTextNotificationsSpellcastsSubtitle:SetText("(e.g. Hearthstone)")
+    if (groupKey) then
+      row.GroupControl = CreateGridCheckbox(content, GRID_GROUP, yPos)
+    else
+      CreateGridDash(content, GRID_GROUP, yPos)
+    end
 
-  self.cbEnableTextNotificationsSpellcasts = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsSpellcasts:SetPoint("LEFT", self, "TOPLEFT", 350, yPos)
-  self.fsEnableTextNotificationsSpellcasts = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsSpellcasts:SetPoint("LEFT", self, "TOPLEFT", 380, yPos)
-  self.fsEnableTextNotificationsSpellcasts:SetText("Party")
-  yPos = yPos - 22
+    table.insert(self.NotificationRows, row)
+    yPos = yPos - ROW_STEP
+    return row
+  end
 
-  self.fsEnableTextNotificationsAurasTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsAurasTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsAurasTitle:SetText("Affected by Certain Threat-Altering Buffs")
+  AddNotificationRow("Entering combat", "EnableTextNotificationsCombatSelf", "EnableTextNotificationsCombatGroup")
+  AddNotificationRow("Disconnect or go offline *", "EnableTextNotificationsConnectionSelf", "EnableTextNotificationsConnectionGroup")
+  AddNotificationRow("Logging out *", nil, "EnableTextNotificationsLogout")
+  self.RowLowHealth = AddNotificationRow("Low health", "EnableTextNotificationsLowHealthSelf", "EnableTextNotificationsLowHealthGroup")
+  self.RowLowMana = AddNotificationRow("Low mana", "EnableTextNotificationsLowManaSelf", "EnableTextNotificationsLowManaGroup")
+  AddNotificationRow("Casting certain spells", nil, "EnableTextNotificationsSpellcasts")
+  AddNotificationRow("Threat-altering buffs", "EnableTextNotificationsAurasSelf", "EnableTextNotificationsAurasGroup")
+  AddNotificationRow("Crowd controlled *", "EnableTextNotificationsLossOfControlSelf", "EnableTextNotificationsLossOfControlGroup")
+  AddNotificationRow("Flagged for PvP", "EnableTextNotificationsPvpFlagged", nil)
+  AddNotificationRow("Extra attacks stored", "EnableTextNotificationsExtraAttacksStored", nil)
 
-  self.cbEnableTextNotificationsAurasSelf = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsAurasSelf:SetPoint("LEFT", self, "TOPLEFT", 280, yPos)
-  self.fsEnableTextNotificationsAurasSelf = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsAurasSelf:SetPoint("LEFT", self, "TOPLEFT", 310, yPos)
-  self.fsEnableTextNotificationsAurasSelf:SetText("You")
+  self.fsNotificationsFootnote = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  self.fsNotificationsFootnote:SetPoint("TOPLEFT", content, "TOPLEFT", INDENT_SUB, yPos - 4)
+  self.fsNotificationsFootnote:SetText("*  requires the other player to have Safeguard or SafeguardReloaded installed.")
+  yPos = yPos - ROW_STEP - SECTION_GAP
 
-  self.cbEnableTextNotificationsAurasGroup = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsAurasGroup:SetPoint("LEFT", self, "TOPLEFT", 420, yPos)
-  self.fsEnableTextNotificationsAurasGroup = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsAurasGroup:SetPoint("LEFT", self, "TOPLEFT", 450, yPos)
-  self.fsEnableTextNotificationsAurasGroup:SetText("Any Nearby Player")
-  yPos = yPos - 22
+  -- *** Interface ***
 
-  self.fsEnableTextNotificationsLossOfControlTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsLossOfControlTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsLossOfControlTitle:SetText("Crowd Controlled")
-  self.fsEnableTextNotificationsLossOfControlSubtitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  self.fsEnableTextNotificationsLossOfControlSubtitle:SetPoint("LEFT", self, "TOPLEFT", 143, yPos)
-  self.fsEnableTextNotificationsLossOfControlSubtitle:SetText("(e.g. stunned, silenced)")
+  CreateSectionHeader(content, yPos, "Interface")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableTextNotificationsLossOfControlSelf = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsLossOfControlSelf:SetPoint("LEFT", self, "TOPLEFT", 280, yPos)
-  self.fsEnableTextNotificationsLossOfControlSelf = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsLossOfControlSelf:SetPoint("LEFT", self, "TOPLEFT", 310, yPos)
-  self.fsEnableTextNotificationsLossOfControlSelf:SetText("You")
+  self.cbShowIconsOnRaidFrames = CreateCheckbox(content, INDENT_TOP, yPos, "Show icons on raid frames")
+  self.cbShowPvpFlagTimerWindow = CreateCheckbox(content, COLUMN_2, yPos, "Show the PvP flag timer")
+  yPos = yPos - ROW_STEP
 
-  self.cbEnableTextNotificationsLossOfControlGroup = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsLossOfControlGroup:SetPoint("LEFT", self, "TOPLEFT", 350, yPos)
-  self.fsEnableTextNotificationsLossOfControlGroup = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsLossOfControlGroup:SetPoint("LEFT", self, "TOPLEFT", 380, yPos)
-  self.fsEnableTextNotificationsLossOfControlGroup:SetText("Party*")
-  yPos = yPos - 22
+  self.cbForceFloatingCombatText = CreateCheckbox(content, INDENT_TOP, yPos, "Force \"Floating Combat Text\" on")
+  self.cbInterceptErrors = CreateCheckbox(content, COLUMN_2, yPos, "Print addon errors to chat")
+  yPos = yPos - ROW_STEP
 
-  self.fsEnableTextNotificationsPvpFlaggedTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsPvpFlaggedTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsPvpFlaggedTitle:SetText("Flagged for PvP")
+  content:SetHeight(-yPos + CONTENT_BOTTOM_PAD)
 
-  self.cbEnableTextNotificationsPvpFlagged = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsPvpFlagged:SetPoint("LEFT", self, "TOPLEFT", 280, yPos)
-  self.fsEnableTextNotificationsPvpFlagged = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsPvpFlagged:SetPoint("LEFT", self, "TOPLEFT", 310, yPos)
-  self.fsEnableTextNotificationsPvpFlagged:SetText("You")
-  yPos = yPos - 22
-
-  self.fsEnableTextNotificationsExtraAttacksStoredTitle = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsExtraAttacksStoredTitle:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsEnableTextNotificationsExtraAttacksStoredTitle:SetText("Extra Attacks Stored")
-
-  self.cbEnableTextNotificationsExtraAttacksStored = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbEnableTextNotificationsExtraAttacksStored:SetPoint("LEFT", self, "TOPLEFT", 280, yPos)
-  self.fsEnableTextNotificationsExtraAttacksStored = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsEnableTextNotificationsExtraAttacksStored:SetPoint("LEFT", self, "TOPLEFT", 310, yPos)
-  self.fsEnableTextNotificationsExtraAttacksStored:SetText("Enemies In Combat")
-  yPos = yPos - 22
-
-  self.fsNotificationsAsteriskNote = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsNotificationsAsteriskNote:SetPoint("LEFT", self, "TOPLEFT", 34, yPos)
-  self.fsNotificationsAsteriskNote:SetText("*: Requires other player to have Safeguard or SafeguardReloaded installed.")
-  yPos = yPos - 22
-
-  self.cbForceFloatingCombatText = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbForceFloatingCombatText:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
-  self.fsForceFloatingCombatText = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsForceFloatingCombatText:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
-  self.fsForceFloatingCombatText:SetText("Force Enable \"Floating Combat Text\" Interface Option")
-  yPos = yPos - 22
-
-  self.cbShowIconsOnRaidFrames = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbShowIconsOnRaidFrames:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
-  self.fsShowIconsOnRaidFrames = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsShowIconsOnRaidFrames:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
-  self.fsShowIconsOnRaidFrames:SetText("Show Icons on Raid Frames")
-  yPos = yPos - 22
-
-  self.cbShowPvpFlagTimerWindow = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbShowPvpFlagTimerWindow:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
-  self.fsShowPvpFlagTimerWindow = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsShowPvpFlagTimerWindow:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
-  self.fsShowPvpFlagTimerWindow:SetText("Show PvP Flag Timer")
-  yPos = yPos - 22
-
-  self.cbInterceptErrors = CreateFrame("CheckButton", nil, self, "UICheckButtonTemplate") 
-  self.cbInterceptErrors:SetPoint("LEFT", self, "TOPLEFT", 10, yPos)
-  self.fsInterceptErrors = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  self.fsInterceptErrors:SetPoint("LEFT", self, "TOPLEFT", 40, yPos)
-  self.fsInterceptErrors:SetText("Intercept SafeguardReloaded Errors (Print Errors to Chat, Prevent Error Popups)")
-  yPos = yPos - 22
+  self.Initialized = true
 end
 
-function Safeguard_OptionWindow:LoadOptions()
-  self.cbEnableChatMessages:SetChecked(Safeguard_Settings.Options.EnableChatMessages)
-  self.cbEnableChatMessagesLogout:SetChecked(Safeguard_Settings.Options.EnableChatMessagesLogout)
-  self.cbEnableChatMessagesLowHealth:SetChecked(Safeguard_Settings.Options.EnableChatMessagesLowHealth)
-  self.cbEnableChatMessagesSpellCasts:SetChecked(Safeguard_Settings.Options.EnableChatMessagesSpellCasts)
-  self.cbEnableChatMessagesLossOfControl:SetChecked(Safeguard_Settings.Options.EnableChatMessagesLossOfControl)
-  self.cbEnableChatMessagesExtraAttacksStored:SetChecked(Safeguard_Settings.Options.EnableChatMessagesExtraAttacksStored)
-  self.cbEnableLowHealthAlerts:SetChecked(Safeguard_Settings.Options.EnableLowHealthAlerts)
-  self.ebLowHealthThreshold:SetNumber(Safeguard_Settings.Options.ThresholdForLowHealth * 100)
-  self.ebCriticalHealthThreshold:SetNumber(Safeguard_Settings.Options.ThresholdForCriticallyLowHealth * 100)
-  self.cbEnableLowHealthAlertScreenFlashing:SetChecked(Safeguard_Settings.Options.EnableLowHealthAlertScreenFlashing)
-  self.cbEnableLowHealthAlertSounds:SetChecked(Safeguard_Settings.Options.EnableLowHealthAlertSounds)
-  self.cbEnableLowManaAlerts:SetChecked(Safeguard_Settings.Options.EnableLowManaAlerts)
-  self.ebLowManaThreshold:SetNumber(Safeguard_Settings.Options.ThresholdForLowMana * 100)
-  self.cbEnableChatMessagesLowMana:SetChecked(Safeguard_Settings.Options.EnableChatMessagesLowMana)
-  self.cbEnableTextNotifications:SetChecked(Safeguard_Settings.Options.EnableTextNotifications)
-  self.cbEnableTextNotificationsCombatSelf:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsCombatSelf)
-  self.cbEnableTextNotificationsCombatGroup:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsCombatGroup)
-  self.cbEnableTextNotificationsConnectionSelf:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsConnectionSelf)
-  self.cbEnableTextNotificationsConnectionGroup:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsConnectionGroup)
-  self.cbEnableTextNotificationsLogout:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsLogout)
-  self.cbEnableTextNotificationsLowHealthSelf:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsLowHealthSelf)
-  self.cbEnableTextNotificationsLowHealthGroup:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsLowHealthGroup)
-  self.cbEnableTextNotificationsSpellcasts:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsSpellcasts)
-  self.cbEnableTextNotificationsAurasSelf:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsAurasSelf)
-  self.cbEnableTextNotificationsAurasGroup:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsAurasGroup)
-  self.cbEnableTextNotificationsLossOfControlSelf:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsLossOfControlSelf)
-  self.cbEnableTextNotificationsLossOfControlGroup:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsLossOfControlGroup)
-  self.cbEnableTextNotificationsPvpFlagged:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsPvpFlagged)
-  self.cbEnableTextNotificationsExtraAttacksStored:SetChecked(Safeguard_Settings.Options.EnableTextNotificationsExtraAttacksStored)
-  self.cbForceFloatingCombatText:SetChecked(Safeguard_Settings.Options.ForceFloatingCombatText)
-  self.cbShowIconsOnRaidFrames:SetChecked(Safeguard_Settings.Options.ShowIconsOnRaidFrames)
-  self.cbShowPvpFlagTimerWindow:SetChecked(Safeguard_Settings.Options.ShowPvpFlagTimerWindow)
-  self.cbInterceptErrors:SetChecked(Safeguard_Settings.Options.InterceptErrors)
+-- Sub-options are greyed out when the switch they depend on is off. The panel used
+-- to carry "(Requires Low Health Alerts)" as static text next to a control that
+-- still looked live; the state now shows itself.
+function OW:UpdateDependentStates()
+  local healthAlerts = self.cbEnableLowHealthAlerts:GetChecked()
+  SetControlEnabled(self.ebLowHealthThreshold, healthAlerts)
+  SetControlEnabled(self.ebCriticalHealthThreshold, healthAlerts)
+  SetControlEnabled(self.cbEnableLowHealthAlertScreenFlashing, healthAlerts)
+  SetControlEnabled(self.cbEnableLowHealthAlertSounds, healthAlerts)
+
+  local manaAlerts = self.cbEnableLowManaAlerts:GetChecked()
+  SetControlEnabled(self.ebLowManaThreshold, manaAlerts)
+
+  local chatMessages = self.cbEnableChatMessages:GetChecked()
+  SetControlEnabled(self.cbEnableChatMessagesLogout, chatMessages)
+  SetControlEnabled(self.cbEnableChatMessagesLowHealth, chatMessages)
+  SetControlEnabled(self.cbEnableChatMessagesLossOfControl, chatMessages)
+  SetControlEnabled(self.cbEnableChatMessagesSpellCasts, chatMessages)
+  SetControlEnabled(self.cbEnableChatMessagesExtraAttacksStored, chatMessages)
+  -- Needs both the chat switch and the feature it reports on.
+  SetControlEnabled(self.cbEnableChatMessagesLowMana, chatMessages and manaAlerts)
+
+  local notifications = self.cbEnableTextNotifications:GetChecked()
+  for i = 1, #self.NotificationRows do
+    local row = self.NotificationRows[i]
+
+    -- The low health and low mana rows report on a feature that can itself be off.
+    local rowEnabled = notifications
+    if (row == self.RowLowHealth) then rowEnabled = notifications and healthAlerts end
+    if (row == self.RowLowMana) then rowEnabled = notifications and manaAlerts end
+
+    SetLabelEnabled(row.Label, rowEnabled)
+    SetControlEnabled(row.SelfControl, rowEnabled)
+    SetControlEnabled(row.GroupControl, rowEnabled)
+  end
+end
+
+function OW:LoadOptions()
+  if (not self.Initialized) then return end
+
+  local options = Safeguard_Settings.Options
+
+  self.cbEnableChatMessages:SetChecked(options.EnableChatMessages)
+  self.cbEnableChatMessagesLogout:SetChecked(options.EnableChatMessagesLogout)
+  self.cbEnableChatMessagesLowHealth:SetChecked(options.EnableChatMessagesLowHealth)
+  self.cbEnableChatMessagesSpellCasts:SetChecked(options.EnableChatMessagesSpellCasts)
+  self.cbEnableChatMessagesLossOfControl:SetChecked(options.EnableChatMessagesLossOfControl)
+  self.cbEnableChatMessagesExtraAttacksStored:SetChecked(options.EnableChatMessagesExtraAttacksStored)
+  self.cbEnableChatMessagesLowMana:SetChecked(options.EnableChatMessagesLowMana)
+
+  self.cbEnableLowHealthAlerts:SetChecked(options.EnableLowHealthAlerts)
+  self.ebLowHealthThreshold:SetNumber(options.ThresholdForLowHealth * 100)
+  self.ebCriticalHealthThreshold:SetNumber(options.ThresholdForCriticallyLowHealth * 100)
+  self.cbEnableLowHealthAlertScreenFlashing:SetChecked(options.EnableLowHealthAlertScreenFlashing)
+  self.cbEnableLowHealthAlertSounds:SetChecked(options.EnableLowHealthAlertSounds)
+
+  self.cbEnableLowManaAlerts:SetChecked(options.EnableLowManaAlerts)
+  self.ebLowManaThreshold:SetNumber(options.ThresholdForLowMana * 100)
+
+  self.cbEnableTextNotifications:SetChecked(options.EnableTextNotifications)
+  for i = 1, #self.NotificationRows do
+    local row = self.NotificationRows[i]
+    if (row.SelfControl) then row.SelfControl:SetChecked(options[row.SelfKey]) end
+    if (row.GroupControl) then row.GroupControl:SetChecked(options[row.GroupKey]) end
+  end
+
+  self.cbForceFloatingCombatText:SetChecked(options.ForceFloatingCombatText)
+  self.cbShowIconsOnRaidFrames:SetChecked(options.ShowIconsOnRaidFrames)
+  self.cbShowPvpFlagTimerWindow:SetChecked(options.ShowPvpFlagTimerWindow)
+  self.cbInterceptErrors:SetChecked(options.InterceptErrors)
 
   self.OptionsLoaded = true
+  self:UpdateDependentStates()
 end
 
-function Safeguard_OptionWindow:SaveOptions()
-  if (not self.OptionsLoaded) then
-    return
-  end
+function OW:SaveOptions()
+  if (not self.OptionsLoaded) then return end
 
   if (self.ebLowHealthThreshold:GetNumber() < 2) then
     self.ebLowHealthThreshold:SetNumber(2)
   end
-  
+
   if (self.ebCriticalHealthThreshold:GetNumber() < 1) then
     self.ebCriticalHealthThreshold:SetNumber(1)
   end
@@ -394,57 +410,56 @@ function Safeguard_OptionWindow:SaveOptions()
     self.ebLowManaThreshold:SetNumber(1)
   end
 
-  local shouldUpdateRaidFrames = Safeguard_Settings.Options.ShowIconsOnRaidFrames ~= self.cbShowIconsOnRaidFrames:GetChecked()
-  local shouldUpdatePvpFlagTimerWindow = not Safeguard_Settings.Options.ShowPvpFlagTimerWindow and self.cbShowPvpFlagTimerWindow:GetChecked()
-  
-  Safeguard_Settings.Options.EnableChatMessages = self.cbEnableChatMessages:GetChecked()
-  Safeguard_Settings.Options.EnableChatMessagesLogout = self.cbEnableChatMessagesLogout:GetChecked()
-  Safeguard_Settings.Options.EnableChatMessagesLowHealth = self.cbEnableChatMessagesLowHealth:GetChecked()
-  Safeguard_Settings.Options.EnableChatMessagesSpellCasts = self.cbEnableChatMessagesSpellCasts:GetChecked()
-  Safeguard_Settings.Options.EnableChatMessagesLossOfControl = self.cbEnableChatMessagesLossOfControl:GetChecked()
-  Safeguard_Settings.Options.EnableChatMessagesExtraAttacksStored = self.cbEnableChatMessagesExtraAttacksStored:GetChecked()
-  Safeguard_Settings.Options.EnableLowHealthAlerts = self.cbEnableLowHealthAlerts:GetChecked()  
-  Safeguard_Settings.Options.ThresholdForLowHealth = self.ebLowHealthThreshold:GetNumber() / 100
-  Safeguard_Settings.Options.ThresholdForCriticallyLowHealth = self.ebCriticalHealthThreshold:GetNumber() / 100
-  Safeguard_Settings.Options.EnableLowHealthAlertScreenFlashing = self.cbEnableLowHealthAlertScreenFlashing:GetChecked()
-  Safeguard_Settings.Options.EnableLowHealthAlertSounds = self.cbEnableLowHealthAlertSounds:GetChecked()
-  Safeguard_Settings.Options.EnableLowManaAlerts = self.cbEnableLowManaAlerts:GetChecked()
-  Safeguard_Settings.Options.ThresholdForLowMana = self.ebLowManaThreshold:GetNumber() / 100
-  Safeguard_Settings.Options.EnableChatMessagesLowMana = self.cbEnableChatMessagesLowMana:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotifications = self.cbEnableTextNotifications:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsCombatSelf = self.cbEnableTextNotificationsCombatSelf:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsCombatGroup = self.cbEnableTextNotificationsCombatGroup:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsConnectionSelf = self.cbEnableTextNotificationsConnectionSelf:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsConnectionGroup = self.cbEnableTextNotificationsConnectionGroup:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsLogout = self.cbEnableTextNotificationsLogout:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsLowHealthSelf = self.cbEnableTextNotificationsLowHealthSelf:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsLowHealthGroup = self.cbEnableTextNotificationsLowHealthGroup:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsSpellcasts = self.cbEnableTextNotificationsSpellcasts:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsAurasSelf = self.cbEnableTextNotificationsAurasSelf:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsAurasGroup = self.cbEnableTextNotificationsAurasGroup:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsLossOfControlSelf = self.cbEnableTextNotificationsLossOfControlSelf:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsLossOfControlGroup = self.cbEnableTextNotificationsLossOfControlGroup:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsPvpFlagged = self.cbEnableTextNotificationsPvpFlagged:GetChecked()
-  Safeguard_Settings.Options.EnableTextNotificationsExtraAttacksStored = self.cbEnableTextNotificationsExtraAttacksStored:GetChecked()
-  Safeguard_Settings.Options.ForceFloatingCombatText = self.cbForceFloatingCombatText:GetChecked()
-  Safeguard_Settings.Options.ShowIconsOnRaidFrames = self.cbShowIconsOnRaidFrames:GetChecked()
-  Safeguard_Settings.Options.ShowPvpFlagTimerWindow = self.cbShowPvpFlagTimerWindow:GetChecked()
-  Safeguard_Settings.Options.InterceptErrors = self.cbInterceptErrors:GetChecked()
+  local options = Safeguard_Settings.Options
 
-  if (Safeguard_Settings.Options.ForceFloatingCombatText and Compat.GetCVar("enableFloatingCombatText") ~= "1") then
+  local shouldUpdateRaidFrames = options.ShowIconsOnRaidFrames ~= self.cbShowIconsOnRaidFrames:GetChecked()
+  local shouldUpdatePvpFlagTimerWindow = not options.ShowPvpFlagTimerWindow and self.cbShowPvpFlagTimerWindow:GetChecked()
+
+  options.EnableChatMessages = self.cbEnableChatMessages:GetChecked()
+  options.EnableChatMessagesLogout = self.cbEnableChatMessagesLogout:GetChecked()
+  options.EnableChatMessagesLowHealth = self.cbEnableChatMessagesLowHealth:GetChecked()
+  options.EnableChatMessagesSpellCasts = self.cbEnableChatMessagesSpellCasts:GetChecked()
+  options.EnableChatMessagesLossOfControl = self.cbEnableChatMessagesLossOfControl:GetChecked()
+  options.EnableChatMessagesExtraAttacksStored = self.cbEnableChatMessagesExtraAttacksStored:GetChecked()
+  options.EnableChatMessagesLowMana = self.cbEnableChatMessagesLowMana:GetChecked()
+
+  options.EnableLowHealthAlerts = self.cbEnableLowHealthAlerts:GetChecked()
+  options.ThresholdForLowHealth = self.ebLowHealthThreshold:GetNumber() / 100
+  options.ThresholdForCriticallyLowHealth = self.ebCriticalHealthThreshold:GetNumber() / 100
+  options.EnableLowHealthAlertScreenFlashing = self.cbEnableLowHealthAlertScreenFlashing:GetChecked()
+  options.EnableLowHealthAlertSounds = self.cbEnableLowHealthAlertSounds:GetChecked()
+
+  options.EnableLowManaAlerts = self.cbEnableLowManaAlerts:GetChecked()
+  options.ThresholdForLowMana = self.ebLowManaThreshold:GetNumber() / 100
+
+  options.EnableTextNotifications = self.cbEnableTextNotifications:GetChecked()
+  for i = 1, #self.NotificationRows do
+    local row = self.NotificationRows[i]
+    if (row.SelfControl) then options[row.SelfKey] = row.SelfControl:GetChecked() end
+    if (row.GroupControl) then options[row.GroupKey] = row.GroupControl:GetChecked() end
+  end
+
+  options.ForceFloatingCombatText = self.cbForceFloatingCombatText:GetChecked()
+  options.ShowIconsOnRaidFrames = self.cbShowIconsOnRaidFrames:GetChecked()
+  options.ShowPvpFlagTimerWindow = self.cbShowPvpFlagTimerWindow:GetChecked()
+  options.InterceptErrors = self.cbInterceptErrors:GetChecked()
+
+  if (options.ForceFloatingCombatText and Compat.GetCVar("enableFloatingCombatText") ~= "1") then
     print(CHAT_PREFIX .. "Enabling floating combat text.")
     Compat.SetCVar("enableFloatingCombatText", 1)
   end
   if (shouldUpdateRaidFrames) then Safeguard_RaidFramesManager:UpdateRaidFrames() end
   if (shouldUpdatePvpFlagTimerWindow) then Safeguard_PvpFlagTimerWindow:Update() end
+
+  self:UpdateDependentStates()
 end
 
-Safeguard_OptionWindow:SetScript("OnShow", function(self)
-  Safeguard_OptionWindow:LoadOptions()
+OW:SetScript("OnShow", function(self)
+  OW:LoadOptions()
 end)
 
-Safeguard_OptionWindow.name = "SafeguardReloaded"
-Safeguard_OptionWindow.OnCommit = function() Safeguard_OptionWindow:SaveOptions() end
-Safeguard_OptionWindow.OnRefresh = function() Safeguard_OptionWindow:LoadOptions() end
+OW.name = "SafeguardReloaded"
+OW.OnCommit = function() OW:SaveOptions() end
+OW.OnRefresh = function() OW:LoadOptions() end
 
-Safeguard_OptionWindow.Category = Compat.RegisterOptionsPanel(Safeguard_OptionWindow, Safeguard_OptionWindow.name)
+OW.Category = Compat.RegisterOptionsPanel(OW, OW.name)

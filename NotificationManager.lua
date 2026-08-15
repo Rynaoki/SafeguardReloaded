@@ -183,9 +183,13 @@ function NM:GetNotification(playerWhoNotified, notificationType, arg1, arg2)
 
     local prefix
     if (playerWhoNotified == UnitName("player")) then
+      if (not Safeguard_Settings.Options.EnableTextNotificationsLowManaSelf) then
+        return nil
+      end
+
       prefix = "Your"
     else
-      if (UnitInRaid("player")) then
+      if (not Safeguard_Settings.Options.EnableTextNotificationsLowManaGroup or UnitInRaid("player")) then
         return nil
       end
 
