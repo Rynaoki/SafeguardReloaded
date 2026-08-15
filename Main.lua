@@ -576,17 +576,43 @@ function EM:CheckToNotifyForExtraAttacks(sourceGuid, sourceName)
   end
 end
 
+-- Alerts play on the Dialog channel, so the dialog cvars are forced on for the
+-- moment the sound is playing and put back afterwards.
+--
+-- Two alerts inside that window used to corrupt the player's settings: dropping
+-- from full health through both thresholds fires alert3 and then alert2 in quick
+-- succession, and the second call read the values the first call had already
+-- forced, took 1/1 to be the player's own settings, and wrote those back for good.
+-- Dialog volume then sat at maximum until the player noticed and fixed it by hand.
+--
+-- The originals are therefore captured once, on the first alert of a burst, and
+-- only the most recently scheduled restore is allowed to run.
+local savedDialogCVars = nil
+local dialogRestoreToken = 0
+
 function EM:PlaySound(soundFile)
-  local normalEnableDialog = Compat.GetCVar("Sound_EnableDialog")
-  local normalDialogVolume = Compat.GetCVar("Sound_DialogVolume")
+  if (not savedDialogCVars) then
+    savedDialogCVars = {
+      EnableDialog = Compat.GetCVar("Sound_EnableDialog"),
+      DialogVolume = Compat.GetCVar("Sound_DialogVolume"),
+    }
+  end
+
   Compat.SetCVar("Sound_EnableDialog", 1)
   Compat.SetCVar("Sound_DialogVolume", 1)
 
   PlaySoundFile("Interface\\AddOns\\" .. ADDON_NAME .. "\\resources\\" .. soundFile .. ".mp3", "Dialog")
 
+  dialogRestoreToken = dialogRestoreToken + 1
+  local token = dialogRestoreToken
+
   C_Timer.After(1, function()
-    Compat.SetCVar("Sound_EnableDialog", normalEnableDialog)
-    Compat.SetCVar("Sound_DialogVolume", normalDialogVolume)
+    -- A later alert has extended the window and owns the restore now.
+    if (token ~= dialogRestoreToken or not savedDialogCVars) then return end
+
+    Compat.SetCVar("Sound_EnableDialog", savedDialogCVars.EnableDialog)
+    Compat.SetCVar("Sound_DialogVolume", savedDialogCVars.DialogVolume)
+    savedDialogCVars = nil
   end)
 end
 

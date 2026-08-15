@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+* **Low health alerts could leave your dialog volume stuck at maximum.** The alert
+  sound plays on the Dialog channel, so the addon briefly forces the dialog cvars on
+  and restores them a second later. Dropping through both health thresholds at once
+  fires two alerts inside that second, and the second one mistook the values the
+  first had already forced for your own settings and wrote them back permanently.
+  Your dialog volume then stayed at maximum until you noticed and reset it by hand.
+
+---
+
 ## 1.3.4
 
 ### Changes
