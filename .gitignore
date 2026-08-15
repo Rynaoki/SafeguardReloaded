@@ -5,6 +5,9 @@ SavedVariables/
 *.bak
 *.old
 
+# Local notes, not for distribution
+CLAUDE.md
+
 # Editors
 .vscode/
 .idea/
