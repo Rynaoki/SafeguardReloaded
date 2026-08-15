@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+* **The chat prefix is `[Safeguard]` again**, reverting the `[SGR]` introduced in
+  1.3.1. A group now reads one consistent tag instead of two spellings of the same
+  addon. The cost is that a chat line no longer tells you which of the two addons
+  sent it, and that the longer prefix eats more of the 255 character limit on short
+  messages.
+
+  This is the prefix on chat and on the addon's own printed lines. The addon message
+  prefix used for addon-to-addon traffic was already `Safeguard` and is unchanged.
+
+---
+
 ## 1.3.3
 
 ### New

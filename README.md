@@ -96,7 +96,6 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list. The short version:
 * Fixed a Lua error thrown every time you hovered a raid frame status icon.
 * Fixed group chat messages being sent to the wrong channel in raids and instance
   groups, where they were silently dropped.
-* Shortened the chat prefix to `[SGR]`.
 * Added a `Compat.lua` shim layer so API changes are handled in one place.
 * Stopped loading ~1.9 MB of unused NPC and zone data on every login.
 

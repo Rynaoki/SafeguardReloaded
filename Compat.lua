@@ -10,12 +10,11 @@ local Compat = SafeguardReloaded_Compat
 
 Compat.AddonName = "SafeguardReloaded"
 
--- Deliberately shorter than the addon name. This is prepended to every line the
--- addon puts in chat, including messages sent to the whole group, where the full
--- name crowds out the message itself. It is also distinct from the original
--- addon's "[Safeguard]", so in a group running both it stays clear which version
--- a message came from.
-Compat.ChatPrefix = "[SGR] "
+-- Prepended to every line the addon puts in chat, including messages sent to the
+-- whole group. Deliberately the same prefix the original addon uses, so a group
+-- reads one consistent tag rather than two spellings of the same thing. The
+-- trade-off is that a message no longer says which of the two addons sent it.
+Compat.ChatPrefix = "[Safeguard] "
 
 -- *** Console variables ***
 -- GetCVar/SetCVar moved into the C_CVar namespace. The globals still exist on
